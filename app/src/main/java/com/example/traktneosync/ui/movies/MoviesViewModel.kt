@@ -9,6 +9,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.time.Instant
 import javax.inject.Inject
 
 @HiltViewModel
@@ -47,7 +48,8 @@ class MoviesViewModel @Inject constructor(
                                 plays = watched.plays,
                                 imdbId = movie.ids.imdb,
                                 tmdbId = movie.ids.tmdb,
-                                posterUrl = null
+                                posterUrl = null,
+                                lastWatchedAt = watched.lastWatchedAt
                             )
                         }
                     }.filterNotNull()
@@ -59,13 +61,18 @@ class MoviesViewModel @Inject constructor(
                                 year = movie.year,
                                 imdbId = movie.ids.imdb,
                                 tmdbId = movie.ids.tmdb,
-                                posterUrl = null
+                                posterUrl = null,
+                                lastWatchedAt = item.listedAt
                             )
                         }
                     }.filterNotNull()
                 }
+                // 按时间降序排序
+                val sorted = rawItems.sortedByDescending { item ->
+                    parseEpochSecond(item.lastWatchedAt)
+                }
                 // 异步获取 TMDB 海报
-                rawItems.map { item ->
+                sorted.map { item ->
                     val posterUrl = item.tmdbId?.let { fetchTmdbPoster(it, isMovie = true) }
                     item.copy(posterUrl = posterUrl)
                 }
@@ -108,5 +115,14 @@ data class MovieItem(
     val plays: Int = 0,
     val imdbId: String? = null,
     val tmdbId: Long? = null,
-    val posterUrl: String? = null
+    val posterUrl: String? = null,
+    val lastWatchedAt: String? = null
 )
+
+private fun parseEpochSecond(isoString: String?): Long {
+    return try {
+        isoString?.let { Instant.parse(it).epochSecond } ?: 0L
+    } catch (e: Exception) {
+        0L
+    }
+}

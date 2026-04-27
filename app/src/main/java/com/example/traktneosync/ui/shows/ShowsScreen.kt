@@ -19,6 +19,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import java.time.Duration
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -153,7 +157,42 @@ private fun ShowCard(
                     )
                 }
             }
+
+            // 观看时间
+            val timeText = formatWatchedAt(item.lastWatchedAt)
+            if (timeText.isNotBlank()) {
+                Text(
+                    text = timeText,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+            }
         }
+    }
+}
+
+private fun formatWatchedAt(isoString: String?): String {
+    if (isoString.isNullOrBlank()) return ""
+    return try {
+        val instant = Instant.parse(isoString)
+        val now = Instant.now()
+        val duration = Duration.between(instant, now)
+        val dateStr = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+            .withZone(ZoneId.systemDefault())
+            .format(instant)
+        val relative = when {
+            duration.toDays() >= 365 -> "${duration.toDays() / 365}年前"
+            duration.toDays() >= 30 -> "${duration.toDays() / 30}个月前"
+            duration.toDays() >= 7 -> "${duration.toDays() / 7}周前"
+            duration.toDays() >= 1 -> "${duration.toDays()}天前"
+            duration.toHours() >= 1 -> "${duration.toHours()}小时前"
+            duration.toMinutes() >= 1 -> "${duration.toMinutes()}分钟前"
+            else -> "刚刚"
+        }
+        "$relative\n$dateStr"
+    } catch (e: Exception) {
+        ""
     }
 }
 

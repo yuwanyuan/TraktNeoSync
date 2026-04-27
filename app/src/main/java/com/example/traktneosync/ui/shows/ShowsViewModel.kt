@@ -9,6 +9,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.time.Instant
 import javax.inject.Inject
 
 @HiltViewModel
@@ -48,7 +49,8 @@ class ShowsViewModel @Inject constructor(
                                 plays = watched.plays,
                                 imdbId = show.ids.imdb,
                                 tmdbId = show.ids.tmdb,
-                                posterUrl = null
+                                posterUrl = null,
+                                lastWatchedAt = watched.lastWatchedAt
                             )
                         }
                     }.filterNotNull()
@@ -61,13 +63,22 @@ class ShowsViewModel @Inject constructor(
                                 year = show.year,
                                 imdbId = show.ids.imdb,
                                 tmdbId = show.ids.tmdb,
-                                posterUrl = null
+                                posterUrl = null,
+                                lastWatchedAt = item.listedAt
                             )
                         }
                     }.filterNotNull()
                 }
+                // 按时间降序排序
+                val sorted = rawItems.sortedByDescending { item ->
+                    try {
+                        item.lastWatchedAt?.let { Instant.parse(it).epochSecond } ?: 0L
+                    } catch (e: Exception) {
+                        0L
+                    }
+                }
                 // 异步获取 TMDB 海报
-                rawItems.map { item ->
+                sorted.map { item ->
                     val posterUrl = item.tmdbId?.let { fetchTmdbPoster(it) }
                     item.copy(posterUrl = posterUrl)
                 }
@@ -107,5 +118,6 @@ data class ShowItem(
     val plays: Int = 0,
     val imdbId: String? = null,
     val tmdbId: Long? = null,
-    val posterUrl: String? = null
+    val posterUrl: String? = null,
+    val lastWatchedAt: String? = null
 )
