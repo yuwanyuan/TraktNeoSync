@@ -11,8 +11,8 @@ data class NeoDBAppRegistrationRequest(
 )
 
 data class NeoDBAppRegistrationResponse(
-    @SerializedName("client_id") val clientId: String,
-    @SerializedName("client_secret") val clientSecret: String
+    @SerializedName("client_id") val clientId: String = "",
+    @SerializedName("client_secret") val clientSecret: String = ""
 )
 
 data class NeoDBTokenRequest(
@@ -24,10 +24,11 @@ data class NeoDBTokenRequest(
 )
 
 data class NeoDBTokenResponse(
-    @SerializedName("access_token") val accessToken: String,
-    @SerializedName("token_type") val tokenType: String,
-    @SerializedName("scope") val scope: String,
-    @SerializedName("created_at") val createdAt: Long
+    @SerializedName("access_token") val accessToken: String = "",
+    @SerializedName("token_type") val tokenType: String = "",
+    @SerializedName("scope") val scope: String = "",
+    @SerializedName("created_at") val createdAt: Long = 0L,
+    @SerializedName("refresh_token") val refreshToken: String? = null
 )
 
 // ========== 条目模型 ==========
@@ -41,11 +42,11 @@ enum class NeoDBShelfType {
 }
 
 data class NeoDBEntry(
-    @SerializedName("uuid") val uuid: String,
-    @SerializedName("url") val url: String,
-    @SerializedName("api_url") val apiUrl: String,
-    @SerializedName("category") val category: String,
-    @SerializedName("display_title") val displayTitle: String,
+    @SerializedName("uuid") val uuid: String = "",
+    @SerializedName("url") val url: String = "",
+    @SerializedName("api_url") val apiUrl: String = "",
+    @SerializedName("category") val category: String = "",
+    @SerializedName("display_title") val displayTitle: String = "",
     @SerializedName("external_resources") val externalResources: List<NeoDBExternalResource> = emptyList(),
     @SerializedName("brief") val brief: String = "",
     @SerializedName("cover_image_url") val coverImageUrl: String? = null,
@@ -60,21 +61,21 @@ data class NeoDBExternalResource(
 // ========== 书架模型 ==========
 
 data class NeoDBMark(
-    @SerializedName("uuid") val uuid: String,
-    @SerializedName("url") val url: String,
-    @SerializedName("item") val item: NeoDBEntry,
-    @SerializedName("shelf_type") val shelfType: String,
+    @SerializedName("uuid") val uuid: String = "",
+    @SerializedName("url") val url: String = "",
+    @SerializedName("item") val item: NeoDBEntry = NeoDBEntry(),
+    @SerializedName("shelf_type") val shelfType: String = "",
     @SerializedName("visibility") val visibility: Int = 0,
-    @SerializedName("created_time") val createdTime: String,
+    @SerializedName("created_time") val createdTime: String = "",
     @SerializedName("rating_grade") val ratingGrade: Int? = null,
     @SerializedName("comment_text") val commentText: String? = null,
     @SerializedName("tags") val tags: List<String> = emptyList()
 )
 
 data class NeoDBPagedMarks(
-    @SerializedName("pages") val pages: Int,
-    @SerializedName("count") val count: Int,
-    @SerializedName("data") val data: List<NeoDBMark>
+    @SerializedName("pages") val pages: Int = 0,
+    @SerializedName("count") val count: Int = 0,
+    @SerializedName("data") val data: List<NeoDBMark> = emptyList()
 )
 
 // ========== 标记请求 ==========
@@ -90,30 +91,30 @@ data class NeoDBMarkRequest(
 // ========== 搜索 ==========
 
 data class NeoDBSearchResult(
-    @SerializedName("pages") val pages: Int,
-    @SerializedName("count") val count: Int,
-    @SerializedName("data") val data: List<NeoDBEntry>
+    @SerializedName("pages") val pages: Int = 0,
+    @SerializedName("count") val count: Int = 0,
+    @SerializedName("data") val data: List<NeoDBEntry> = emptyList()
 )
 
 // ========== 实例信息 ==========
 
 data class NeoDBInstance(
-    @SerializedName("api_url") val apiUrl: String,
-    @SerializedName("domain") val domain: String,
+    @SerializedName("api_url") val apiUrl: String = "",
+    @SerializedName("domain") val domain: String = "",
     @SerializedName("nickname") val nickname: String? = null
 )
 
 data class NeoDBPublicInstance(
-    @SerializedName("domain") val domain: String,
-    @SerializedName("users") val users: Int,
+    @SerializedName("domain") val domain: String = "",
+    @SerializedName("users") val users: Int = 0,
     @SerializedName("name") val name: String? = null
 )
 
 // ========== 用户 ==========
 
 data class NeoDBUser(
-    @SerializedName("url") val url: String,
-    @SerializedName("external_acct") val externalAcct: String,
-    @SerializedName("display_name") val displayName: String,
+    @SerializedName("url") val url: String = "",
+    @SerializedName("external_acct") val externalAcct: String = "",
+    @SerializedName("display_name") val displayName: String = "",
     @SerializedName("avatar_url") val avatarUrl: String? = null
 )

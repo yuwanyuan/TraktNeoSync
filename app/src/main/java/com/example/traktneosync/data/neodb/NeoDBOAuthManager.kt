@@ -34,6 +34,22 @@ class NeoDBOAuthManager @Inject constructor(
     suspend fun registerApp(instance: String = DEFAULT_INSTANCE): Boolean = withContext(Dispatchers.IO) {
         currentInstance = instance
         
+        // 优先使用 BuildConfig 预设的凭证
+        if (BuildConfig.NEODB_CLIENT_ID.isNotEmpty()) {
+            currentClientId = BuildConfig.NEODB_CLIENT_ID
+            currentClientSecret = BuildConfig.NEODB_CLIENT_SECRET
+            return@withContext true
+        }
+        
+        // 尝试从持久化存储读取
+        val saved = authRepository.getNeoDBAppCredentials()
+        if (saved != null) {
+            currentClientId = saved.first
+            currentClientSecret = saved.second
+            return@withContext true
+        }
+        
+        // 动态注册新应用
         return@withContext try {
             val request = NeoDBAppRegistrationRequest(
                 clientName = "TraktNeoSync",
@@ -43,6 +59,9 @@ class NeoDBOAuthManager @Inject constructor(
             val response = neoDBApi.registerApp(request)
             currentClientId = response.clientId
             currentClientSecret = response.clientSecret
+            
+            // 持久化保存
+            authRepository.saveNeoDBAppCredentials(currentClientId, currentClientSecret)
             
             true
         } catch (e: Exception) {
@@ -113,9 +132,9 @@ class NeoDBOAuthManager @Inject constructor(
     // ========== 应用凭证管理 ==========
     
     private suspend fun saveAppCredentials(instance: String, clientId: String, clientSecret: String) {
-        // 如果需要持久化，可以用 DataStore 存储
         currentInstance = instance
         currentClientId = clientId
         currentClientSecret = clientSecret
+        authRepository.saveNeoDBAppCredentials(clientId, clientSecret)
     }
 }

@@ -87,15 +87,15 @@ interface TraktApiService {
 }
 
 data class TraktUser(
-    val username: String,
-    @SerializedName("private") val isPrivate: Boolean,
-    val name: String,
-    val vip: Boolean,
-    @SerializedName("ids") val ids: TraktUserIds
+    @SerializedName("username") val username: String = "",
+    @SerializedName("private") val isPrivate: Boolean = false,
+    @SerializedName("name") val name: String = "",
+    @SerializedName("vip") val vip: Boolean = false,
+    @SerializedName("ids") val ids: TraktUserIds = TraktUserIds()
 )
 
 data class TraktUserIds(
-    val slug: String
+    @SerializedName("slug") val slug: String = ""
 )
 
 data class TraktSyncRequest(
@@ -132,18 +132,20 @@ data class TraktSyncEpisode(
 )
 
 data class TraktSyncResponse(
-    val added: TraktSyncCounts,
-    val existing: TraktSyncCounts,
-    val not_found: TraktSyncNotFound
+    @SerializedName("added") val added: TraktSyncCounts = TraktSyncCounts(),
+    @SerializedName("existing") val existing: TraktSyncCounts = TraktSyncCounts(),
+    @SerializedName("not_found") val notFound: TraktSyncNotFound = TraktSyncNotFound()
 )
 
 data class TraktSyncCounts(
-    val movies: Int = 0,
-    val episodes: Int = 0
+    @SerializedName("movies") val movies: Int = 0,
+    @SerializedName("shows") val shows: Int = 0,
+    @SerializedName("episodes") val episodes: Int = 0,
+    @SerializedName("seasons") val seasons: Int = 0
 )
 
 data class TraktSyncNotFound(
-    val movies: List<TraktSyncMovie> = emptyList(),
-    val shows: List<TraktSyncShow> = emptyList(),
-    val episodes: List<TraktSyncEpisode> = emptyList()
+    @SerializedName("movies") val movies: List<TraktSyncMovie> = emptyList(),
+    @SerializedName("shows") val shows: List<TraktSyncShow> = emptyList(),
+    @SerializedName("episodes") val episodes: List<TraktSyncEpisode> = emptyList()
 )

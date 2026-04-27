@@ -22,6 +22,10 @@ class AuthRepository @Inject constructor(
         val NEODB_ACCESS_TOKEN = stringPreferencesKey("neodb_access_token")
         val NEODB_INSTANCE = stringPreferencesKey("neodb_instance")
         val NEODB_USER = stringPreferencesKey("neodb_user")
+        
+        // NeoDB 动态注册的应用凭证
+        val NEODB_APP_CLIENT_ID = stringPreferencesKey("neodb_app_client_id")
+        val NEODB_APP_CLIENT_SECRET = stringPreferencesKey("neodb_app_client_secret")
     }
     
     // ========== Trakt Auth ==========
@@ -65,7 +69,25 @@ class AuthRepository @Inject constructor(
             prefs.remove(Keys.NEODB_ACCESS_TOKEN)
             prefs.remove(Keys.NEODB_INSTANCE)
             prefs.remove(Keys.NEODB_USER)
+            prefs.remove(Keys.NEODB_APP_CLIENT_ID)
+            prefs.remove(Keys.NEODB_APP_CLIENT_SECRET)
         }
+    }
+    
+    // ========== NeoDB App 凭证（动态注册） ==========
+    
+    suspend fun saveNeoDBAppCredentials(clientId: String, clientSecret: String) {
+        dataStore.edit { prefs ->
+            prefs[Keys.NEODB_APP_CLIENT_ID] = clientId
+            prefs[Keys.NEODB_APP_CLIENT_SECRET] = clientSecret
+        }
+    }
+    
+    suspend fun getNeoDBAppCredentials(): Pair<String, String>? {
+        val prefs = dataStore.data.first()
+        val clientId = prefs[Keys.NEODB_APP_CLIENT_ID] ?: return null
+        val clientSecret = prefs[Keys.NEODB_APP_CLIENT_SECRET] ?: return null
+        return Pair(clientId, clientSecret)
     }
     
     suspend fun isLoggedIn(): Boolean {

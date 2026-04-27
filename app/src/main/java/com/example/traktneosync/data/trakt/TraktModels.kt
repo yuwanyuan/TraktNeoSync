@@ -12,19 +12,19 @@ data class TraktWatchedItem(
 )
 
 data class TraktMovie(
-    @SerializedName("title") val title: String,
+    @SerializedName("title") val title: String = "",
     @SerializedName("year") val year: Int? = null,
-    @SerializedName("ids") val ids: TraktIds
+    @SerializedName("ids") val ids: TraktIds = TraktIds()
 )
 
 data class TraktShow(
-    @SerializedName("title") val title: String,
+    @SerializedName("title") val title: String = "",
     @SerializedName("year") val year: Int? = null,
-    @SerializedName("ids") val ids: TraktIds
+    @SerializedName("ids") val ids: TraktIds = TraktIds()
 )
 
 data class TraktIds(
-    @SerializedName("trakt") val trakt: Long,
+    @SerializedName("trakt") val trakt: Long = 0L,
     @SerializedName("imdb") val imdb: String? = null,
     @SerializedName("tmdb") val tmdb: Long? = null,
     @SerializedName("tvdb") val tvdb: Long? = null
@@ -34,30 +34,30 @@ data class TraktWatchlistItem(
     @SerializedName("movie") val movie: TraktMovie? = null,
     @SerializedName("show") val show: TraktShow? = null,
     @SerializedName("rank") val rank: Int = 0,
-    @SerializedName("listed_at") val listedAt: String
+    @SerializedName("listed_at") val listedAt: String = ""
 )
 
 data class TraktHistoryItem(
-    @SerializedName("id") val id: Long,
-    @SerializedName("watched_at") val watchedAt: String,
-    @SerializedName("action") val action: String,
-    @SerializedName("type") val type: String,
+    @SerializedName("id") val id: Long = 0L,
+    @SerializedName("watched_at") val watchedAt: String = "",
+    @SerializedName("action") val action: String = "",
+    @SerializedName("type") val type: String = "",
     @SerializedName("movie") val movie: TraktMovie? = null,
     @SerializedName("show") val show: TraktShow? = null,
     @SerializedName("episode") val episode: TraktEpisode? = null
 )
 
 data class TraktEpisode(
-    @SerializedName("title") val title: String,
-    @SerializedName("ids") val ids: TraktIds,
-    @SerializedName("season") val season: Int,
-    @SerializedName("number") val number: Int
+    @SerializedName("title") val title: String = "",
+    @SerializedName("ids") val ids: TraktIds = TraktIds(),
+    @SerializedName("season") val season: Int = 0,
+    @SerializedName("number") val number: Int = 0
 )
 
 data class TraktPlaybackItem(
-    @SerializedName("progress") val progress: Double,
-    @SerializedName("paused_at") val pausedAt: String,
-    @SerializedName("type") val type: String,
+    @SerializedName("progress") val progress: Double = 0.0,
+    @SerializedName("paused_at") val pausedAt: String = "",
+    @SerializedName("type") val type: String = "",
     @SerializedName("movie") val movie: TraktMovie? = null,
     @SerializedName("episode") val episode: TraktEpisode? = null,
     @SerializedName("show") val show: TraktShow? = null
@@ -74,22 +74,22 @@ data class TraktTokenRequest(
 )
 
 data class TraktTokenResponse(
-    @SerializedName("access_token") val accessToken: String,
-    @SerializedName("token_type") val tokenType: String,
-    @SerializedName("expires_in") val expiresIn: Long,
-    @SerializedName("refresh_token") val refreshToken: String,
-    @SerializedName("scope") val scope: String,
-    @SerializedName("created_at") val createdAt: Long
+    @SerializedName("access_token") val accessToken: String = "",
+    @SerializedName("token_type") val tokenType: String = "",
+    @SerializedName("expires_in") val expiresIn: Long = 0L,
+    @SerializedName("refresh_token") val refreshToken: String = "",
+    @SerializedName("scope") val scope: String = "",
+    @SerializedName("created_at") val createdAt: Long = 0L
 )
 
 data class TraktDeviceCodeRequest(
-    @SerializedName("client_id") val clientId: String
+    @SerializedName("client_id") val clientId: String = ""
 )
 
 data class TraktDeviceCodeResponse(
-    @SerializedName("device_code") val deviceCode: String,
-    @SerializedName("user_code") val userCode: String,
-    @SerializedName("verification_url") val verificationUrl: String,
-    @SerializedName("expires_in") val expiresIn: Int,
-    @SerializedName("interval") val interval: Int
+    @SerializedName("device_code") val deviceCode: String = "",
+    @SerializedName("user_code") val userCode: String = "",
+    @SerializedName("verification_url") val verificationUrl: String = "",
+    @SerializedName("expires_in") val expiresIn: Int = 0,
+    @SerializedName("interval") val interval: Int = 5
 )
