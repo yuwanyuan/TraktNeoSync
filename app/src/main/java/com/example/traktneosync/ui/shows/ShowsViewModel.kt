@@ -4,11 +4,19 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.traktneosync.data.SyncRepository
+import com.example.traktneosync.data.cache.CacheDao
+import com.example.traktneosync.data.cache.PosterCacheEntity
+import com.example.traktneosync.data.cache.TraktCacheEntity
 import com.example.traktneosync.data.tmdb.TmdbApiService
+import com.example.traktneosync.util.AppLogger
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import java.time.Instant
 import javax.inject.Inject
 
@@ -16,10 +24,12 @@ import javax.inject.Inject
 class ShowsViewModel @Inject constructor(
     private val syncRepository: SyncRepository,
     private val tmdbApi: TmdbApiService,
+    private val cacheDao: CacheDao,
 ) : ViewModel() {
 
     companion object {
         private const val TAG = "ShowsViewModel"
+        private const val TMDB_CONCURRENCY = 5
     }
 
     private val _uiState = MutableStateFlow(ShowsUiState())
@@ -34,13 +44,32 @@ class ShowsViewModel @Inject constructor(
         loadShows()
     }
 
+    fun refresh() {
+        loadShows()
+    }
+
     private fun loadShows() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
+            val status = if (_uiState.value.selectedTab == 0) "watched" else "watchlist"
 
+            // 1. 先读本地缓存
+            val cached = try {
+                cacheDao.getCachedItems("show", status).map { it.toShowItem() }
+            } catch (e: Exception) {
+                AppLogger.log("ShowsViewModel: 读取缓存失败", e)
+                emptyList()
+            }
+
+            if (cached.isNotEmpty()) {
+                _uiState.value = _uiState.value.copy(items = cached, isLoading = true)
+                AppLogger.log("ShowsViewModel: 从缓存加载 ${cached.size} 条剧集, tab=$status")
+            } else {
+                _uiState.value = _uiState.value.copy(isLoading = true)
+            }
+
+            // 2. 网络请求
             val items = try {
                 val rawItems = if (_uiState.value.selectedTab == 0) {
-                    // 已观看
                     syncRepository.getTraktWatchedShows().map { watched ->
                         watched.show?.let { show ->
                             ShowItem(
@@ -55,7 +84,6 @@ class ShowsViewModel @Inject constructor(
                         }
                     }.filterNotNull()
                 } else {
-                    // 待看
                     syncRepository.getTraktShowWatchlist().map { item ->
                         item.show?.let { show ->
                             ShowItem(
@@ -69,6 +97,8 @@ class ShowsViewModel @Inject constructor(
                         }
                     }.filterNotNull()
                 }
+                AppLogger.log("ShowsViewModel: 从Trakt获取 ${rawItems.size} 条剧集数据, tab=$status")
+
                 // 按时间降序排序
                 val sorted = rawItems.sortedByDescending { item ->
                     try {
@@ -77,13 +107,37 @@ class ShowsViewModel @Inject constructor(
                         0L
                     }
                 }
-                // 异步获取 TMDB 海报
-                sorted.map { item ->
-                    val posterUrl = item.tmdbId?.let { fetchTmdbPoster(it) }
-                    item.copy(posterUrl = posterUrl)
+
+                // 并行获取 TMDB 海报（带缓存）
+                val semaphore = Semaphore(TMDB_CONCURRENCY)
+                val deferredList = sorted.map { item ->
+                    async {
+                        semaphore.withPermit {
+                            val posterUrl = item.tmdbId?.let { fetchTmdbPosterCached(it) }
+                            item.copy(posterUrl = posterUrl)
+                        }
+                    }
                 }
+                val result = deferredList.awaitAll()
+                val withPoster = result.count { it.posterUrl != null }
+                AppLogger.log("ShowsViewModel: 海报加载完成 $withPoster/${result.size}")
+
+                // 写入缓存
+                try {
+                    cacheDao.replaceItems("show", status, result.map { it.toEntity("show", status) })
+                    AppLogger.log("ShowsViewModel: 已写入缓存 ${result.size} 条")
+                } catch (e: Exception) {
+                    AppLogger.log("ShowsViewModel: 写入缓存失败", e)
+                }
+
+                result
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading shows: ${e.message}")
+                AppLogger.log("ShowsViewModel: 加载剧集列表失败", e)
+                if (cached.isNotEmpty()) {
+                    _uiState.value = _uiState.value.copy(isLoading = false)
+                    return@launch
+                }
                 emptyList()
             }
 
@@ -94,17 +148,56 @@ class ShowsViewModel @Inject constructor(
         }
     }
 
-    private suspend fun fetchTmdbPoster(tmdbId: Long): String? {
+    private suspend fun fetchTmdbPosterCached(tmdbId: Long): String? {
+        val cachedPoster = try { cacheDao.getPoster(tmdbId) } catch (e: Exception) { null }
+        if (cachedPoster != null) {
+            return cachedPoster.posterPath?.let { "https://image.tmdb.org/t/p/w200$it" }
+        }
+
         return try {
-            tmdbApi.getTvDetail(tmdbId).posterPath?.let {
-                "https://image.tmdb.org/t/p/w200$it"
+            val path = tmdbApi.getTvDetail(tmdbId).posterPath
+            try {
+                cacheDao.insertPosters(listOf(PosterCacheEntity(tmdbId = tmdbId, posterPath = path)))
+            } catch (e: Exception) {
+                AppLogger.log("ShowsViewModel: 写入海报缓存失败 tmdbId=$tmdbId", e)
             }
+            path?.let { "https://image.tmdb.org/t/p/w200$it" }
         } catch (e: Exception) {
             Log.w(TAG, "TMDB fetch failed for id=$tmdbId: ${e.message}")
+            AppLogger.log("ShowsViewModel: TMDB海报获取失败 tmdbId=$tmdbId, ${e.message}")
+            try {
+                cacheDao.insertPosters(listOf(PosterCacheEntity(tmdbId = tmdbId, posterPath = null)))
+            } catch (_: Exception) { }
             null
         }
     }
 }
+
+// ========== 数据转换 ==========
+
+private fun TraktCacheEntity.toShowItem() = ShowItem(
+    title = title,
+    year = year,
+    plays = plays,
+    imdbId = imdbId,
+    tmdbId = tmdbId,
+    posterUrl = posterUrl,
+    lastWatchedAt = lastWatchedAt
+)
+
+private fun ShowItem.toEntity(type: String, status: String) = TraktCacheEntity(
+    id = "${type}_${status}_${tmdbId ?: imdbId ?: (title + year).hashCode()}",
+    title = title,
+    year = year,
+    type = type,
+    status = status,
+    plays = plays,
+    imdbId = imdbId,
+    tmdbId = tmdbId,
+    posterUrl = posterUrl,
+    lastWatchedAt = lastWatchedAt,
+    cachedAt = System.currentTimeMillis()
+)
 
 data class ShowsUiState(
     val isLoading: Boolean = false,

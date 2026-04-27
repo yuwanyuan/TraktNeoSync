@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.example.traktneosync.data.tmdb.TmdbApiKeyProvider
+import com.example.traktneosync.data.tmdb.TmdbLanguageProvider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -14,7 +15,8 @@ import javax.inject.Singleton
 @Singleton
 class AuthRepository @Inject constructor(
     private val dataStore: DataStore<Preferences>,
-    private val tmdbKeyProvider: TmdbApiKeyProvider
+    private val tmdbKeyProvider: TmdbApiKeyProvider,
+    private val tmdbLanguageProvider: TmdbLanguageProvider,
 ) {
     private object Keys {
         val TRAKT_ACCESS_TOKEN = stringPreferencesKey("trakt_access_token")
@@ -31,6 +33,9 @@ class AuthRepository @Inject constructor(
 
         // TMDB API Key
         val TMDB_API_KEY = stringPreferencesKey("tmdb_api_key")
+
+        // 首选显示语言（影响TMDB请求language参数）
+        val PREFERRED_LANGUAGE = stringPreferencesKey("preferred_language")
     }
     
     // ========== Trakt Auth ==========
@@ -114,5 +119,21 @@ class AuthRepository @Inject constructor(
             }
         }
         tmdbKeyProvider.apiKey = trimmed
+    }
+
+    // ========== 首选显示语言 ==========
+
+    val preferredLanguage: Flow<String?> = dataStore.data.map { it[Keys.PREFERRED_LANGUAGE] }
+
+    suspend fun setPreferredLanguage(language: String) {
+        dataStore.edit { prefs ->
+            prefs[Keys.PREFERRED_LANGUAGE] = language
+        }
+        tmdbLanguageProvider.language = language
+    }
+
+    suspend fun initLanguage() {
+        val lang = dataStore.data.first()[Keys.PREFERRED_LANGUAGE] ?: "zh-CN"
+        tmdbLanguageProvider.language = lang
     }
 }

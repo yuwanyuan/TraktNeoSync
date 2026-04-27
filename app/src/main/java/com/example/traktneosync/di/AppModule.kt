@@ -4,11 +4,15 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
+import androidx.room.Room
 import com.example.traktneosync.BuildConfig
+import com.example.traktneosync.data.cache.AppDatabase
+import com.example.traktneosync.data.cache.CacheDao
 import com.example.traktneosync.data.neodb.NeoDBApiService
 import com.example.traktneosync.data.neodb.NeoDBBaseUrlProvider
 import com.example.traktneosync.data.tmdb.TmdbApiKeyProvider
 import com.example.traktneosync.data.tmdb.TmdbApiService
+import com.example.traktneosync.data.tmdb.TmdbLanguageProvider
 import com.example.traktneosync.data.trakt.TraktApiService
 import dagger.Module
 import dagger.Provides
@@ -117,7 +121,16 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideTmdbHttpClient(keyProvider: TmdbApiKeyProvider): OkHttpClient {
+    fun provideTmdbLanguageProvider(): TmdbLanguageProvider {
+        return TmdbLanguageProvider()
+    }
+
+    @Provides
+    @Singleton
+    fun provideTmdbHttpClient(
+        keyProvider: TmdbApiKeyProvider,
+        langProvider: TmdbLanguageProvider
+    ): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BASIC
         }
@@ -125,10 +138,11 @@ object AppModule {
             .addInterceptor(logging)
             .addInterceptor(Interceptor { chain ->
                 val apiKey = keyProvider.apiKey.takeIf { it.isNotEmpty() } ?: ""
+                val language = langProvider.language.takeIf { it.isNotEmpty() } ?: "zh-CN"
                 val original = chain.request()
                 val url = original.url.newBuilder()
                     .addQueryParameter("api_key", apiKey)
-                    .addQueryParameter("language", "zh-CN")
+                    .addQueryParameter("language", language)
                     .build()
                 val request = original.newBuilder().url(url).build()
                 chain.proceed(request)
@@ -145,6 +159,22 @@ object AppModule {
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(TmdbApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
+        return Room.databaseBuilder(
+            context,
+            AppDatabase::class.java,
+            "traktneosync_cache.db"
+        ).build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideCacheDao(database: AppDatabase): CacheDao {
+        return database.cacheDao()
     }
 }
 

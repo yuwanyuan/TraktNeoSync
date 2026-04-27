@@ -22,10 +22,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.Button
@@ -60,8 +60,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.traktneosync.data.neodb.NeoDBOAuthManager
 import com.example.traktneosync.data.trakt.TraktOAuthManager
-import com.example.traktneosync.ui.auth.AuthScreen
 import com.example.traktneosync.ui.detail.DetailScreen
+import com.example.traktneosync.ui.settings.SettingsScreen
 import com.example.traktneosync.ui.movies.MovieItem
 import com.example.traktneosync.ui.movies.MoviesScreen
 import com.example.traktneosync.ui.search.SearchScreen
@@ -183,7 +183,7 @@ sealed class BottomNavItem(
     object Shows : BottomNavItem("shows", "剧集", Icons.Default.Tv)
     object Sync : BottomNavItem("sync", "同步", Icons.Default.Sync)
     object Search : BottomNavItem("search", "搜索", Icons.Default.Search)
-    object Account : BottomNavItem("account", "账号", Icons.Default.AccountCircle)
+    object Settings : BottomNavItem("settings", "设置", Icons.Default.Settings)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -198,7 +198,7 @@ fun TraktNeoSyncApp(
         BottomNavItem.Shows,
         BottomNavItem.Sync,
         BottomNavItem.Search,
-        BottomNavItem.Account
+        BottomNavItem.Settings
     )
 
     Scaffold(
@@ -296,8 +296,8 @@ fun TraktNeoSyncApp(
                     }
                 )
             }
-            composable(BottomNavItem.Account.route) {
-                AuthScreen()
+            composable(BottomNavItem.Settings.route) {
+                SettingsScreen()
             }
             // 详情页面
             composable("detail/{type}/{title}/{year}/{imdbId}/{tmdbId}/{posterUrl}/{plays}") { backStackEntry ->
