@@ -46,6 +46,10 @@ class DetailViewModel @Inject constructor(
                 overview = null,
                 backdropUrls = emptyList(),
                 posterUrls = emptyList(),
+                imdbRating = null,
+                imdbVoteCount = null,
+                neoDBRating = null,
+                neoDBRatingCount = 0,
             )
         }
 
@@ -127,8 +131,14 @@ class DetailViewModel @Inject constructor(
 
                 itemUuid = bestMatch.uuid
 
-                // 保存 NeoDB 简介作为备选
-                _uiState.update { it.copy(overview = bestMatch.brief.takeIf { b -> b.isNotBlank() }) }
+                // 保存 NeoDB 简介和评分
+                _uiState.update {
+                    it.copy(
+                        overview = bestMatch.brief.takeIf { b -> b.isNotBlank() },
+                        neoDBRating = bestMatch.rating,
+                        neoDBRatingCount = bestMatch.ratingCount
+                    )
+                }
 
                 // 3. 加载第一页评论
                 loadPostsPage(token, bestMatch.uuid, 1, reset = true)
@@ -144,10 +154,12 @@ class DetailViewModel @Inject constructor(
             _uiState.update { it.copy(isLoadingDetails = true, detailsError = null) }
             try {
                 val isMovie = type == "电影" || type == "movie"
-                val tmdbOverview = if (isMovie) {
-                    tmdbApi.getMovieDetail(tmdbId).overview
+                val (tmdbOverview, voteAverage, voteCount) = if (isMovie) {
+                    val d = tmdbApi.getMovieDetail(tmdbId)
+                    Triple(d.overview, d.voteAverage, d.voteCount)
                 } else {
-                    tmdbApi.getTvDetail(tmdbId).overview
+                    val d = tmdbApi.getTvDetail(tmdbId)
+                    Triple(d.overview, d.voteAverage, d.voteCount)
                 }
 
                 val images = if (isMovie) {
@@ -177,6 +189,8 @@ class DetailViewModel @Inject constructor(
                         backdropUrls = backdrops,
                         posterUrls = posters,
                         isLoadingDetails = false,
+                        imdbRating = voteAverage,
+                        imdbVoteCount = voteCount,
                     )
                 }
             } catch (e: Exception) {
@@ -291,6 +305,11 @@ data class DetailUiState(
     val posterUrls: List<String> = emptyList(),
     val isLoadingDetails: Boolean = false,
     val detailsError: String? = null,
+    // 评分
+    val imdbRating: Float? = null,
+    val imdbVoteCount: Int? = null,
+    val neoDBRating: Float? = null,
+    val neoDBRatingCount: Int = 0,
     // 图片查看器
     val selectedImageUrl: String? = null,
 )

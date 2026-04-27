@@ -23,11 +23,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BugReport
-import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.Tv
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -62,13 +61,10 @@ import com.example.traktneosync.data.neodb.NeoDBOAuthManager
 import com.example.traktneosync.data.trakt.TraktOAuthManager
 import com.example.traktneosync.ui.detail.DetailScreen
 import com.example.traktneosync.ui.settings.SettingsScreen
-import com.example.traktneosync.ui.movies.MovieItem
-import com.example.traktneosync.ui.movies.MoviesScreen
 import com.example.traktneosync.ui.search.SearchScreen
-import com.example.traktneosync.ui.shows.ShowItem
-import com.example.traktneosync.ui.shows.ShowsScreen
 import com.example.traktneosync.ui.sync.SyncListItem
 import com.example.traktneosync.ui.sync.SyncScreen
+import com.example.traktneosync.ui.trakt.TraktScreen
 import com.example.traktneosync.ui.theme.TraktNeoSyncTheme
 import com.example.traktneosync.util.AppLogger
 import dagger.hilt.android.AndroidEntryPoint
@@ -179,8 +175,7 @@ sealed class BottomNavItem(
     val title: String,
     val icon: ImageVector
 ) {
-    object Movies : BottomNavItem("movies", "电影", Icons.Default.Movie)
-    object Shows : BottomNavItem("shows", "剧集", Icons.Default.Tv)
+    object Trakt : BottomNavItem("trakt", "Trakt", Icons.Default.VideoLibrary)
     object Sync : BottomNavItem("sync", "同步", Icons.Default.Sync)
     object Search : BottomNavItem("search", "搜索", Icons.Default.Search)
     object Settings : BottomNavItem("settings", "设置", Icons.Default.Settings)
@@ -194,8 +189,7 @@ fun TraktNeoSyncApp(
 ) {
     val navController = rememberNavController()
     val navItems = listOf(
-        BottomNavItem.Movies,
-        BottomNavItem.Shows,
+        BottomNavItem.Trakt,
         BottomNavItem.Sync,
         BottomNavItem.Search,
         BottomNavItem.Settings
@@ -248,21 +242,17 @@ fun TraktNeoSyncApp(
             startDestination = BottomNavItem.Sync.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(BottomNavItem.Movies.route) {
-                MoviesScreen(
-                    onNavigateToDetail = { movie ->
+            composable(BottomNavItem.Trakt.route) {
+                TraktScreen(
+                    onNavigateToMovieDetail = { movie ->
                         val encodedTitle = java.net.URLEncoder.encode(movie.title, "UTF-8")
                         val encodedPoster = java.net.URLEncoder.encode(movie.posterUrl ?: "_null_", "UTF-8")
                         val imdbId = movie.imdbId?.takeIf { it.isNotBlank() } ?: "_null_"
                         navController.navigate(
                             "detail/movie/$encodedTitle/${movie.year ?: 0}/$imdbId/${movie.tmdbId ?: 0}/$encodedPoster/${movie.plays}"
                         )
-                    }
-                )
-            }
-            composable(BottomNavItem.Shows.route) {
-                ShowsScreen(
-                    onNavigateToDetail = { show ->
+                    },
+                    onNavigateToShowDetail = { show ->
                         val encodedTitle = java.net.URLEncoder.encode(show.title, "UTF-8")
                         val encodedPoster = java.net.URLEncoder.encode(show.posterUrl ?: "_null_", "UTF-8")
                         val imdbId = show.imdbId?.takeIf { it.isNotBlank() } ?: "_null_"

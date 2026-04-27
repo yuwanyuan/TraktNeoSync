@@ -42,6 +42,8 @@ data class TmdbMovieDetail(
     @SerializedName("title") val title: String = "",
     @SerializedName("release_date") val releaseDate: String = "",
     @SerializedName("overview") val overview: String? = null,
+    @SerializedName("vote_average") val voteAverage: Float? = null,
+    @SerializedName("vote_count") val voteCount: Int? = null,
 )
 
 data class TmdbTvDetail(
@@ -49,6 +51,8 @@ data class TmdbTvDetail(
     @SerializedName("name") val name: String = "",
     @SerializedName("first_air_date") val firstAirDate: String = "",
     @SerializedName("overview") val overview: String? = null,
+    @SerializedName("vote_average") val voteAverage: Float? = null,
+    @SerializedName("vote_count") val voteCount: Int? = null,
 )
 
 data class TmdbImagesResponse(
