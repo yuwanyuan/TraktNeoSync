@@ -104,13 +104,16 @@ class MoviesViewModel @Inject constructor(
                     parseEpochSecond(item.lastWatchedAt)
                 }
 
-                // 并行获取 TMDB 海报（带缓存）
+                // 并行获取 TMDB 海报与中文标题（带缓存）
                 val semaphore = Semaphore(TMDB_CONCURRENCY)
                 val deferredList = sorted.map { item ->
                     async {
                         semaphore.withPermit {
-                            val posterUrl = item.tmdbId?.let { fetchTmdbPosterCached(it, isMovie = true) }
-                            item.copy(posterUrl = posterUrl)
+                            val detail = item.tmdbId?.let { fetchTmdbDetailCached(it, isMovie = true) }
+                            item.copy(
+                                title = detail?.chineseTitle?.takeIf { it.isNotBlank() } ?: item.title,
+                                posterUrl = detail?.posterUrl
+                            )
                         }
                     }
                 }
@@ -145,19 +148,22 @@ class MoviesViewModel @Inject constructor(
         }
     }
 
-    private suspend fun fetchTmdbPosterCached(tmdbId: Long, isMovie: Boolean): String? {
+    private suspend fun fetchTmdbDetailCached(tmdbId: Long, isMovie: Boolean): TmdbDetailResult {
         // 查海报缓存
         val cachedPoster = try { cacheDao.getPoster(tmdbId) } catch (e: Exception) { null }
         if (cachedPoster != null) {
-            return cachedPoster.posterPath?.let { "https://image.tmdb.org/t/p/w200$it" }
+            val posterUrl = cachedPoster.posterPath?.let { "https://image.tmdb.org/t/p/w200$it" }
+            return TmdbDetailResult(posterUrl = posterUrl, chineseTitle = null)
         }
 
         // 未命中，请求 TMDB
         return try {
-            val path = if (isMovie) {
-                tmdbApi.getMovieDetail(tmdbId).posterPath
+            val (path, chineseTitle) = if (isMovie) {
+                val d = tmdbApi.getMovieDetail(tmdbId)
+                Pair(d.posterPath, d.title)
             } else {
-                tmdbApi.getTvDetail(tmdbId).posterPath
+                val d = tmdbApi.getTvDetail(tmdbId)
+                Pair(d.posterPath, d.name)
             }
             // 写入海报缓存（包括 null，避免重复请求无海报条目）
             try {
@@ -165,17 +171,23 @@ class MoviesViewModel @Inject constructor(
             } catch (e: Exception) {
                 AppLogger.log("MoviesViewModel: 写入海报缓存失败 tmdbId=$tmdbId", e)
             }
-            path?.let { "https://image.tmdb.org/t/p/w200$it" }
+            val posterUrl = path?.let { "https://image.tmdb.org/t/p/w200$it" }
+            TmdbDetailResult(posterUrl = posterUrl, chineseTitle = chineseTitle)
         } catch (e: Exception) {
             Log.w(TAG, "TMDB fetch failed for id=$tmdbId: ${e.message}")
-            AppLogger.log("MoviesViewModel: TMDB海报获取失败 tmdbId=$tmdbId, ${e.message}")
+            AppLogger.log("MoviesViewModel: TMDB详情获取失败 tmdbId=$tmdbId, ${e.message}")
             // 写入空缓存，防止反复请求失败条目
             try {
                 cacheDao.insertPosters(listOf(PosterCacheEntity(tmdbId = tmdbId, posterPath = null)))
             } catch (_: Exception) { }
-            null
+            TmdbDetailResult(posterUrl = null, chineseTitle = null)
         }
     }
+
+    data class TmdbDetailResult(
+        val posterUrl: String?,
+        val chineseTitle: String?
+    )
 }
 
 // ========== 数据转换 ==========

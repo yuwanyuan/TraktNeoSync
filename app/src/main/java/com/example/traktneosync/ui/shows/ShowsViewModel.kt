@@ -108,13 +108,16 @@ class ShowsViewModel @Inject constructor(
                     }
                 }
 
-                // 并行获取 TMDB 海报（带缓存）
+                // 并行获取 TMDB 海报与中文标题（带缓存）
                 val semaphore = Semaphore(TMDB_CONCURRENCY)
                 val deferredList = sorted.map { item ->
                     async {
                         semaphore.withPermit {
-                            val posterUrl = item.tmdbId?.let { fetchTmdbPosterCached(it) }
-                            item.copy(posterUrl = posterUrl)
+                            val detail = item.tmdbId?.let { fetchTmdbDetailCached(it) }
+                            item.copy(
+                                title = detail?.chineseTitle?.takeIf { it.isNotBlank() } ?: item.title,
+                                posterUrl = detail?.posterUrl
+                            )
                         }
                     }
                 }
@@ -148,29 +151,38 @@ class ShowsViewModel @Inject constructor(
         }
     }
 
-    private suspend fun fetchTmdbPosterCached(tmdbId: Long): String? {
+    private suspend fun fetchTmdbDetailCached(tmdbId: Long): TmdbDetailResult {
         val cachedPoster = try { cacheDao.getPoster(tmdbId) } catch (e: Exception) { null }
         if (cachedPoster != null) {
-            return cachedPoster.posterPath?.let { "https://image.tmdb.org/t/p/w200$it" }
+            val posterUrl = cachedPoster.posterPath?.let { "https://image.tmdb.org/t/p/w200$it" }
+            return TmdbDetailResult(posterUrl = posterUrl, chineseTitle = null)
         }
 
         return try {
-            val path = tmdbApi.getTvDetail(tmdbId).posterPath
+            val detail = tmdbApi.getTvDetail(tmdbId)
+            val path = detail.posterPath
+            val chineseTitle = detail.name
             try {
                 cacheDao.insertPosters(listOf(PosterCacheEntity(tmdbId = tmdbId, posterPath = path)))
             } catch (e: Exception) {
                 AppLogger.log("ShowsViewModel: 写入海报缓存失败 tmdbId=$tmdbId", e)
             }
-            path?.let { "https://image.tmdb.org/t/p/w200$it" }
+            val posterUrl = path?.let { "https://image.tmdb.org/t/p/w200$it" }
+            TmdbDetailResult(posterUrl = posterUrl, chineseTitle = chineseTitle)
         } catch (e: Exception) {
             Log.w(TAG, "TMDB fetch failed for id=$tmdbId: ${e.message}")
-            AppLogger.log("ShowsViewModel: TMDB海报获取失败 tmdbId=$tmdbId, ${e.message}")
+            AppLogger.log("ShowsViewModel: TMDB详情获取失败 tmdbId=$tmdbId, ${e.message}")
             try {
                 cacheDao.insertPosters(listOf(PosterCacheEntity(tmdbId = tmdbId, posterPath = null)))
             } catch (_: Exception) { }
-            null
+            TmdbDetailResult(posterUrl = null, chineseTitle = null)
         }
     }
+
+    data class TmdbDetailResult(
+        val posterUrl: String?,
+        val chineseTitle: String?
+    )
 }
 
 // ========== 数据转换 ==========
