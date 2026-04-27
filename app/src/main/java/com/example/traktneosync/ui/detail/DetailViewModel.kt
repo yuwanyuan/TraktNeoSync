@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.traktneosync.data.AuthRepository
 import com.example.traktneosync.data.neodb.NeoDBApiService
+import com.example.traktneosync.data.neodb.NeoDBMark
+import com.example.traktneosync.data.neodb.NeoDBMarkRequest
 import com.example.traktneosync.data.neodb.NeoDBPaginatedPosts
 import com.example.traktneosync.data.neodb.NeoDBPost
 import com.example.traktneosync.data.tmdb.TmdbApiService
@@ -208,6 +210,85 @@ class DetailViewModel @Inject constructor(
         _uiState.update { it.copy(selectedImageUrl = null) }
     }
 
+    // ========== 评分对话框 ==========
+
+    fun openRatingDialog() {
+        _uiState.update { it.copy(showRatingDialog = true, ratingSubmitError = null) }
+        loadCurrentMark()
+    }
+
+    fun dismissRatingDialog() {
+        _uiState.update { it.copy(showRatingDialog = false, ratingSubmitError = null) }
+    }
+
+    private fun loadCurrentMark() {
+        val uuid = itemUuid ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingMarkStatus = true) }
+            try {
+                val token = authRepository.neodbAccessToken.first()
+                if (token.isNullOrEmpty()) {
+                    _uiState.update { it.copy(isLoadingMarkStatus = false) }
+                    return@launch
+                }
+                val mark = neoDBApi.getItemMark("Bearer $token", uuid)
+                _uiState.update { it.copy(currentMark = mark, isLoadingMarkStatus = false) }
+            } catch (e: Exception) {
+                Log.d(TAG, "No existing mark found: ${e.message}")
+                _uiState.update { it.copy(currentMark = null, isLoadingMarkStatus = false) }
+            }
+        }
+    }
+
+    fun submitRating(ratingGrade: Int, comment: String, shareToMastodon: Boolean) {
+        val uuid = itemUuid ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSubmittingRating = true, ratingSubmitError = null) }
+            try {
+                val token = authRepository.neodbAccessToken.first()
+                if (token.isNullOrEmpty()) {
+                    _uiState.update { it.copy(isSubmittingRating = false, ratingSubmitError = "NeoDB 未登录") }
+                    return@launch
+                }
+
+                val currentMark = _uiState.value.currentMark
+                val shelfType = currentMark?.shelfType?.takeIf { it.isNotBlank() } ?: "complete"
+                val visibility = if (shareToMastodon) 0 else 2 // 0=公开, 2=私密
+
+                val request = NeoDBMarkRequest(
+                    shelfType = shelfType,
+                    visibility = visibility,
+                    ratingGrade = ratingGrade,
+                    commentText = comment.takeIf { it.isNotBlank() }
+                )
+
+                neoDBApi.addOrUpdateMark("Bearer $token", uuid, request)
+
+                _uiState.update { it.copy(isSubmittingRating = false, showRatingDialog = false) }
+                // 刷新评论和评分数据
+                refreshNeoDBData()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error submitting rating: ${e.message}", e)
+                _uiState.update { it.copy(isSubmittingRating = false, ratingSubmitError = e.message) }
+            }
+        }
+    }
+
+    private fun refreshNeoDBData() {
+        val uuid = itemUuid ?: return
+        viewModelScope.launch {
+            try {
+                val token = authRepository.neodbAccessToken.first() ?: return@launch
+                // 重新加载评论第一页
+                loadPostsPage(token, uuid, 1, reset = true)
+                // 评分数据会在用户下次进入详情页时重新加载
+                // 此处仅刷新评论即可
+            } catch (e: Exception) {
+                Log.e(TAG, "Error refreshing NeoDB data: ${e.message}", e)
+            }
+        }
+    }
+
     fun loadMoreReviews() {
         val uuid = itemUuid ?: return
         if (currentPostPage >= totalPostPages || _uiState.value.isLoadingMore) return
@@ -312,6 +393,12 @@ data class DetailUiState(
     val neoDBRatingCount: Int = 0,
     // 图片查看器
     val selectedImageUrl: String? = null,
+    // 评分对话框
+    val showRatingDialog: Boolean = false,
+    val isLoadingMarkStatus: Boolean = false,
+    val currentMark: NeoDBMark? = null,
+    val isSubmittingRating: Boolean = false,
+    val ratingSubmitError: String? = null,
 )
 
 data class ReviewItem(

@@ -20,6 +20,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -98,6 +102,153 @@ fun DetailScreen(
                         .padding(16.dp)
                 ) {
                     Text("保存", color = Color.White)
+                }
+            }
+        }
+    }
+
+    // 评分对话框
+    if (uiState.showRatingDialog) {
+        var ratingValue by remember(uiState.currentMark) {
+            mutableFloatStateOf(
+                (uiState.currentMark?.ratingGrade ?: 5).toFloat().coerceIn(1f, 10f)
+            )
+        }
+        var commentText by remember(uiState.currentMark) {
+            mutableStateOf(uiState.currentMark?.commentText ?: "")
+        }
+        var shareToMastodon by remember { mutableStateOf(true) }
+
+        Dialog(onDismissRequest = { viewModel.dismissRatingDialog() }) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = "评分",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    if (uiState.isLoadingMarkStatus) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        }
+                    } else {
+                        // 评分 Slider
+                        Column {
+                            Text(
+                                text = "${ratingValue.toInt()} 分",
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.align(Alignment.CenterHorizontally)
+                            )
+                            Slider(
+                                value = ratingValue,
+                                onValueChange = { ratingValue = it },
+                                valueRange = 1f..10f,
+                                steps = 8, // 1-10 共10个刻度，steps=8表示中间有8个步进点
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("1", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("10", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+
+                        // 评论输入
+                        OutlinedTextField(
+                            value = commentText,
+                            onValueChange = { commentText = it },
+                            label = { Text("评论（可选）") },
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 2,
+                            maxLines = 4
+                        )
+
+                        // 同步到长毛象开关
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "同步到长毛象",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Text(
+                                    text = "发布到 Fediverse 时间线",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = shareToMastodon,
+                                onCheckedChange = { shareToMastodon = it }
+                            )
+                        }
+                    }
+
+                    // 错误提示
+                    val ratingError = uiState.ratingSubmitError
+                    if (ratingError != null) {
+                        Text(
+                            text = ratingError,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    // 按钮
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(
+                            onClick = { viewModel.dismissRatingDialog() },
+                            enabled = !uiState.isSubmittingRating
+                        ) {
+                            Text("取消")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                viewModel.submitRating(
+                                    ratingGrade = ratingValue.toInt(),
+                                    comment = commentText,
+                                    shareToMastodon = shareToMastodon
+                                )
+                            },
+                            enabled = !uiState.isSubmittingRating && !uiState.isLoadingMarkStatus
+                        ) {
+                            if (uiState.isSubmittingRating) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text("提交")
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -239,7 +390,12 @@ fun DetailScreen(
                                 )
                             }
                             if (uiState.neoDBRating != null) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.clickable {
+                                        viewModel.openRatingDialog()
+                                    }
+                                ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(
                                             imageVector = Icons.Default.Star,
