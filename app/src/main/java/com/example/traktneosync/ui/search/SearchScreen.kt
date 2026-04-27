@@ -10,7 +10,9 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
@@ -20,8 +22,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.example.traktneosync.data.neodb.NeoDBEntry
@@ -33,6 +37,26 @@ fun SearchScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val focusManager = LocalFocusManager.current
+
+    // 评分对话框
+    if (uiState.showRatingDialog) {
+        val entry = uiState.ratingTargetEntry
+        if (entry != null) {
+            RatingDialog(
+                entryTitle = entry.displayTitle,
+                ratingValue = uiState.ratingValue,
+                ratingComment = uiState.ratingComment,
+                shareToMastodon = uiState.shareToMastodon,
+                isSubmitting = uiState.isSubmittingRating,
+                error = uiState.ratingError,
+                onRatingChange = { viewModel.setRatingValue(it) },
+                onCommentChange = { viewModel.setRatingComment(it) },
+                onShareToMastodonChange = { viewModel.setShareToMastodon(it) },
+                onDismiss = { viewModel.dismissRatingDialog() },
+                onSubmit = { viewModel.submitRating() }
+            )
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -94,8 +118,11 @@ fun SearchScreen(
                 SearchResultsList(
                     results = uiState.results,
                     addedUuids = uiState.addedUuids,
-                    onAdd = { entry ->
-                        viewModel.addToShelf(entry, uiState.shelfType)
+                    onAddToShelf = { entry, shelfType ->
+                        viewModel.addToShelf(entry, shelfType)
+                    },
+                    onRate = { entry ->
+                        viewModel.openRatingDialog(entry)
                     },
                     onNavigateToDetail = onNavigateToDetail
                 )
@@ -130,7 +157,8 @@ private fun CategoryFilter(
 private fun SearchResultsList(
     results: List<NeoDBEntry>,
     addedUuids: Set<String>,
-    onAdd: (NeoDBEntry) -> Unit,
+    onAddToShelf: (NeoDBEntry, String) -> Unit,
+    onRate: (NeoDBEntry) -> Unit,
     onNavigateToDetail: (NeoDBEntry) -> Unit
 ) {
     LazyColumn(
@@ -141,7 +169,8 @@ private fun SearchResultsList(
             SearchResultCard(
                 entry = entry,
                 isAdded = isAdded,
-                onAdd = { onAdd(entry) },
+                onAddToShelf = { shelfType -> onAddToShelf(entry, shelfType) },
+                onRate = { onRate(entry) },
                 onClick = { onNavigateToDetail(entry) }
             )
         }
@@ -152,9 +181,12 @@ private fun SearchResultsList(
 private fun SearchResultCard(
     entry: NeoDBEntry,
     isAdded: Boolean,
-    onAdd: () -> Unit,
+    onAddToShelf: (String) -> Unit,
+    onRate: () -> Unit,
     onClick: () -> Unit
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -220,22 +252,49 @@ private fun SearchResultCard(
                 }
             }
 
-            // 添加按钮
-            if (isAdded) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "已添加",
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            } else {
-                FilledIconButton(
-                    onClick = onAdd,
-                    modifier = Modifier.size(40.dp)
-                ) {
+            // 操作菜单
+            Box {
+                IconButton(onClick = { menuExpanded = true }) {
                     Icon(
-                        Icons.Default.Add,
-                        contentDescription = "添加到书架",
-                        modifier = Modifier.size(20.dp)
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "操作"
+                    )
+                }
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("添加到想看") },
+                        onClick = {
+                            menuExpanded = false
+                            onAddToShelf("wishlist")
+                        },
+                        leadingIcon = { Icon(Icons.Default.Add, null) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("添加到在看") },
+                        onClick = {
+                            menuExpanded = false
+                            onAddToShelf("progress")
+                        },
+                        leadingIcon = { Icon(Icons.Default.Add, null) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("添加到看过") },
+                        onClick = {
+                            menuExpanded = false
+                            onAddToShelf("complete")
+                        },
+                        leadingIcon = { Icon(Icons.Default.Add, null) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("评分") },
+                        onClick = {
+                            menuExpanded = false
+                            onRate()
+                        },
+                        leadingIcon = { Icon(Icons.Default.Star, null) }
                     )
                 }
             }
@@ -281,5 +340,146 @@ private fun EmptySearchResults() {
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+    }
+}
+
+@Composable
+private fun RatingDialog(
+    entryTitle: String,
+    ratingValue: Int,
+    ratingComment: String,
+    shareToMastodon: Boolean,
+    isSubmitting: Boolean,
+    error: String?,
+    onRatingChange: (Int) -> Unit,
+    onCommentChange: (String) -> Unit,
+    onShareToMastodonChange: (Boolean) -> Unit,
+    onDismiss: () -> Unit,
+    onSubmit: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "评分",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = entryTitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                // 评分 Slider
+                Column {
+                    Text(
+                        text = "$ratingValue 分",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
+                    Slider(
+                        value = ratingValue.toFloat(),
+                        onValueChange = { onRatingChange(it.toInt()) },
+                        valueRange = 1f..10f,
+                        steps = 8,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("1", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("10", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+
+                // 评论输入
+                OutlinedTextField(
+                    value = ratingComment,
+                    onValueChange = onCommentChange,
+                    label = { Text("评论（可选）") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                    maxLines = 4
+                )
+
+                // 同步到长毛象开关
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "同步到长毛象",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = "发布到 Fediverse 时间线",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = shareToMastodon,
+                        onCheckedChange = onShareToMastodonChange
+                    )
+                }
+
+                // 错误提示
+                val ratingErr = error
+                if (ratingErr != null) {
+                    Text(
+                        text = ratingErr,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                // 按钮
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(
+                        onClick = onDismiss,
+                        enabled = !isSubmitting
+                    ) {
+                        Text("取消")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = onSubmit,
+                        enabled = !isSubmitting
+                    ) {
+                        if (isSubmitting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text("提交")
+                        }
+                    }
+                }
+            }
+        }
     }
 }

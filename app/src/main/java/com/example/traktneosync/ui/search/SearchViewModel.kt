@@ -125,6 +125,83 @@ class SearchViewModel @Inject constructor(
         }
     }
 
+    // ========== 评分对话框 ==========
+
+    fun openRatingDialog(entry: NeoDBEntry) {
+        _uiState.value = _uiState.value.copy(
+            showRatingDialog = true,
+            ratingTargetEntry = entry,
+            ratingValue = 5,
+            ratingComment = "",
+            shareToMastodon = true,
+            ratingError = null
+        )
+    }
+
+    fun dismissRatingDialog() {
+        _uiState.value = _uiState.value.copy(
+            showRatingDialog = false,
+            ratingTargetEntry = null,
+            ratingError = null
+        )
+    }
+
+    fun setRatingValue(value: Int) {
+        _uiState.value = _uiState.value.copy(ratingValue = value)
+    }
+
+    fun setRatingComment(comment: String) {
+        _uiState.value = _uiState.value.copy(ratingComment = comment)
+    }
+
+    fun setShareToMastodon(share: Boolean) {
+        _uiState.value = _uiState.value.copy(shareToMastodon = share)
+    }
+
+    fun submitRating() {
+        val entry = _uiState.value.ratingTargetEntry ?: return
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isSubmittingRating = true, ratingError = null)
+            try {
+                val token = authRepository.neodbAccessToken.first()
+                if (token == null) {
+                    _uiState.value = _uiState.value.copy(
+                        isSubmittingRating = false,
+                        ratingError = "未登录 NeoDB"
+                    )
+                    return@launch
+                }
+
+                val visibility = if (_uiState.value.shareToMastodon) 0 else 2
+                val request = NeoDBMarkRequest(
+                    shelfType = "complete",
+                    visibility = visibility,
+                    ratingGrade = _uiState.value.ratingValue,
+                    commentText = _uiState.value.ratingComment.takeIf { it.isNotBlank() }
+                )
+
+                neoDBApi.addOrUpdateMark(
+                    token = "Bearer $token",
+                    uuid = entry.uuid,
+                    request = request
+                )
+
+                _uiState.value = _uiState.value.copy(
+                    isSubmittingRating = false,
+                    showRatingDialog = false,
+                    ratingTargetEntry = null,
+                    addedUuids = _uiState.value.addedUuids + entry.uuid
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Submit rating error: ${e.message}")
+                _uiState.value = _uiState.value.copy(
+                    isSubmittingRating = false,
+                    ratingError = e.message ?: "提交失败"
+                )
+            }
+        }
+    }
+
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
     }
@@ -138,7 +215,15 @@ data class SearchUiState(
     val error: String? = null,
     val hasSearched: Boolean = false,
     val shelfType: String = "wishlist", // 默认添加到想看
-    val addedUuids: Set<String> = emptySet()
+    val addedUuids: Set<String> = emptySet(),
+    // 评分对话框
+    val showRatingDialog: Boolean = false,
+    val ratingTargetEntry: NeoDBEntry? = null,
+    val ratingValue: Int = 5,
+    val ratingComment: String = "",
+    val shareToMastodon: Boolean = true,
+    val isSubmittingRating: Boolean = false,
+    val ratingError: String? = null,
 )
 
 enum class SearchCategory(val label: String) {
