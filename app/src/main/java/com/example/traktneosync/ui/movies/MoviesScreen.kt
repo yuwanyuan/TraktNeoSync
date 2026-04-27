@@ -1,7 +1,12 @@
 package com.example.traktneosync.ui.movies
 
+import android.app.DownloadManager
+import android.content.Context
+import android.net.Uri
+import android.os.Environment
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,7 +19,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -93,6 +100,7 @@ private fun MovieCard(
     item: MovieItem,
     onClick: () -> Unit
 ) {
+    val context = LocalContext.current
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -112,7 +120,12 @@ private fun MovieCard(
                     contentDescription = item.title,
                     modifier = Modifier
                         .size(width = 60.dp, height = 80.dp)
-                        .clip(RoundedCornerShape(8.dp)),
+                        .clip(RoundedCornerShape(8.dp))
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onLongPress = { savePosterImage(context, item.posterUrl) }
+                            )
+                        },
                     contentScale = ContentScale.Crop
                 )
             } else {
@@ -193,6 +206,21 @@ private fun formatWatchedAt(isoString: String?): String {
         "$relative\n$dateStr"
     } catch (e: Exception) {
         ""
+    }
+}
+
+private fun savePosterImage(context: Context, imageUrl: String) {
+    try {
+        val fileName = "TraktNeoSync_poster_${System.currentTimeMillis()}.jpg"
+        val request = DownloadManager.Request(Uri.parse(imageUrl))
+            .setTitle("保存海报")
+            .setDescription("正在下载海报...")
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setDestinationInExternalPublicDir(Environment.DIRECTORY_PICTURES, fileName)
+        val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        dm.enqueue(request)
+    } catch (e: Exception) {
+        e.printStackTrace()
     }
 }
 
