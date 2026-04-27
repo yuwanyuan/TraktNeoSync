@@ -34,7 +34,7 @@ class DetailViewModel @Inject constructor(
     private var totalPostPages = 1
     private var itemUuid: String? = null
 
-    fun loadNeoDBReviews(title: String, year: Int?, type: String, imdbId: String?) {
+    fun loadNeoDBReviews(title: String, year: Int?, type: String, imdbId: String?, tmdbId: Long?) {
         if (_uiState.value.isLoadingReviews) return
         _uiState.update {
             it.copy(
@@ -55,12 +55,54 @@ class DetailViewModel @Inject constructor(
                     return@launch
                 }
 
+                var searchTitle = title
+                var searchYear = year
+                val isMovie = type == "电影" || type == "movie"
+                val category = if (isMovie) "movie" else "tv"
+
+                // 如果有 tmdbId，先尝试获取中文译名和准确年份
+                if (tmdbId != null && tmdbId > 0) {
+                    try {
+                        val altTitles = if (isMovie) {
+                            tmdbApi.getMovieAlternativeTitles(tmdbId)
+                        } else {
+                            tmdbApi.getTvAlternativeTitles(tmdbId)
+                        }
+                        // 优先找中国大陆/台湾/香港中文标题
+                        val cnTitle = altTitles.titles?.firstOrNull { it.iso31661 == "CN" }?.title
+                            ?: altTitles.results?.firstOrNull { it.iso31661 == "CN" }?.title
+                            ?: altTitles.titles?.firstOrNull { it.iso31661 == "TW" }?.title
+                            ?: altTitles.results?.firstOrNull { it.iso31661 == "TW" }?.title
+                            ?: altTitles.titles?.firstOrNull { it.iso31661 == "HK" }?.title
+                            ?: altTitles.results?.firstOrNull { it.iso31661 == "HK" }?.title
+
+                        if (!cnTitle.isNullOrBlank()) {
+                            searchTitle = cnTitle
+                            Log.d(TAG, "Using TMDB CN title for NeoDB search: $searchTitle")
+                        }
+
+                        // 同时获取 TMDB 的准确年份
+                        if (isMovie) {
+                            val detail = tmdbApi.getMovieDetail(tmdbId)
+                            if (detail.releaseDate.isNotBlank()) {
+                                searchYear = detail.releaseDate.take(4).toIntOrNull()
+                            }
+                        } else {
+                            val detail = tmdbApi.getTvDetail(tmdbId)
+                            if (detail.firstAirDate.isNotBlank()) {
+                                searchYear = detail.firstAirDate.take(4).toIntOrNull()
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to get TMDB alternative title: ${e.message}")
+                    }
+                }
+
                 // 1. 搜索 NeoDB 条目
-                val category = if (type == "电影") "movie" else "tv"
                 val query = if (imdbId != null && imdbId.isNotEmpty()) {
                     imdbId
                 } else {
-                    "$title ${year ?: ""}".trim()
+                    "$searchTitle ${searchYear ?: ""}".trim()
                 }
 
                 val searchResult = neoDBApi.search("Bearer $token", query, category, 1)
@@ -76,8 +118,8 @@ class DetailViewModel @Inject constructor(
                     } ?: searchResult.data.first()
                 } else {
                     searchResult.data.firstOrNull { entry ->
-                        entry.displayTitle.equals(title, ignoreCase = true) ||
-                                entry.displayTitle.contains(title, ignoreCase = true)
+                        entry.displayTitle.equals(searchTitle, ignoreCase = true) ||
+                                entry.displayTitle.contains(searchTitle, ignoreCase = true)
                     } ?: searchResult.data.first()
                 }
 
@@ -140,6 +182,14 @@ class DetailViewModel @Inject constructor(
                 _uiState.update { it.copy(isLoadingDetails = false, detailsError = e.message) }
             }
         }
+    }
+
+    fun selectImage(url: String) {
+        _uiState.update { it.copy(selectedImageUrl = url) }
+    }
+
+    fun dismissImageViewer() {
+        _uiState.update { it.copy(selectedImageUrl = null) }
     }
 
     fun loadMoreReviews() {
@@ -208,6 +258,8 @@ data class DetailUiState(
     val posterUrls: List<String> = emptyList(),
     val isLoadingDetails: Boolean = false,
     val detailsError: String? = null,
+    // 图片查看器
+    val selectedImageUrl: String? = null,
 )
 
 data class ReviewItem(
