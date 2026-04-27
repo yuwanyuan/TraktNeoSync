@@ -2,29 +2,53 @@ package com.example.traktneosync
 
 import android.content.Intent
 import android.net.Uri
-import android.os.Bundle
+import android.os.Build
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Tv
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -56,12 +80,72 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var neodbOAuthManager: NeoDBOAuthManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+
+        // 检查上次崩溃记录
+        val lastCrash = (application as? TraktNeoSyncApp)?.getLastCrash()
+
         setContent {
             TraktNeoSyncTheme {
-                TraktNeoSyncApp()
+                var showErrorScreen by remember { mutableStateOf(lastCrash != null) }
+                var errorMessage by remember { mutableStateOf(lastCrash ?: "") }
+                var showDiagnostic by remember { mutableStateOf(false) }
+                var hiltInjectionOk by remember { mutableStateOf(false) }
+                var hiltError by remember { mutableStateOf<String?>(null) }
+
+                // 检查 Hilt 注入状态
+                try {
+                    val traktOk = ::traktOAuthManager.isInitialized
+                    val neodbOk = ::neodbOAuthManager.isInitialized
+                    hiltInjectionOk = traktOk && neodbOk
+                    if (!hiltInjectionOk) {
+                        hiltError = "TraktOAuthManager: $traktOk, NeoDBOAuthManager: $neodbOk"
+                    }
+                } catch (e: Exception) {
+                    hiltError = e.message
+                }
+
+                if (showErrorScreen) {
+                    // 崩溃诊断界面 - 红色背景，绝不白屏
+                    CrashDiagnosticScreen(
+                        errorMessage = errorMessage,
+                        hiltError = hiltError,
+                        onDismiss = {
+                            (application as? TraktNeoSyncApp)?.clearLastCrash()
+                            showErrorScreen = false
+                        }
+                    )
+                } else if (showDiagnostic) {
+                    // 诊断模式 - 显示系统信息
+                    DiagnosticScreen(
+                        hiltInjectionOk = hiltInjectionOk,
+                        hiltError = hiltError,
+                        onDismiss = { showDiagnostic = false }
+                    )
+                } else {
+                    // 正常 UI - 包裹 try-catch 防止白屏
+                    try {
+                        TraktNeoSyncApp(
+                            onShowDiagnostic = { showDiagnostic = true }
+                        )
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Compose render error", e)
+                        (application as? TraktNeoSyncApp)?.let { app ->
+                            val trace = Log.getStackTraceString(e)
+                            app.getSharedPreferences("crash_logs", 0)
+                                .edit().putString("last_crash", trace).apply()
+                        }
+                        CrashDiagnosticScreen(
+                            errorMessage = Log.getStackTraceString(e),
+                            hiltError = hiltError,
+                            onDismiss = { showErrorScreen = false }
+                        )
+                    }
+                }
             }
         }
+
         // 处理首次启动带 deep link 的情况
         handleDeepLink(intent?.data)
     }
@@ -108,7 +192,8 @@ sealed class BottomNavItem(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TraktNeoSyncApp(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onShowDiagnostic: () -> Unit = {}
 ) {
     val navController = rememberNavController()
     val navItems = listOf(
@@ -118,19 +203,30 @@ fun TraktNeoSyncApp(
         BottomNavItem.Search,
         BottomNavItem.Account
     )
-    
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text("Trakt ↔ NeoDB") }
+                title = { Text("Trakt ↔ NeoDB") },
+                actions = {
+                    // 调试按钮 - 长按可进入诊断模式
+                    IconButton(onClick = onShowDiagnostic) {
+                        Icon(
+                            Icons.Default.BugReport,
+                            contentDescription = "诊断",
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors()
             )
         },
         bottomBar = {
             NavigationBar {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentDestination = navBackStackEntry?.destination
-                
+
                 navItems.forEach { item ->
                     NavigationBarItem(
                         icon = { Icon(item.icon, contentDescription = item.title) },
@@ -171,5 +267,167 @@ fun TraktNeoSyncApp(
                 AuthScreen()
             }
         }
+    }
+}
+
+@Composable
+private fun IconButton(onClick: () -> Unit, content: @Composable () -> Unit) {
+    Button(
+        onClick = onClick,
+        colors = ButtonDefaults.textButtonColors(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(8.dp),
+        modifier = Modifier.size(48.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            content()
+        }
+    }
+}
+
+@Composable
+fun CrashDiagnosticScreen(
+    errorMessage: String,
+    hiltError: String?,
+    onDismiss: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = Color(0xFFFFEBEE) // 浅红色背景
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.Top,
+            horizontalAlignment = Alignment.Start
+        ) {
+            Text(
+                text = "⚠️ 应用崩溃诊断",
+                style = MaterialTheme.typography.headlineMedium,
+                color = Color(0xFFB71C1C)
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (hiltError != null) {
+                Text(
+                    text = "Hilt 注入状态: ❌ 失败",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color(0xFFD32F2F)
+                )
+                Text(
+                    text = hiltError,
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFFD32F2F)
+                )
+            } else {
+                Text(
+                    text = "Hilt 注入状态: ✅ 成功",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color(0xFF2E7D32)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "崩溃堆栈:",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color(0xFFB71C1C)
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = errorMessage.take(2000),
+                fontFamily = FontFamily.Monospace,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFFD32F2F),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White)
+                    .padding(8.dp)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF1565C0)
+                )
+            ) {
+                Text("尝试恢复UI")
+            }
+        }
+    }
+}
+
+@Composable
+fun DiagnosticScreen(
+    hiltInjectionOk: Boolean,
+    hiltError: String?,
+    onDismiss: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = Color(0xFFE3F2FD) // 浅蓝色背景
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.Top,
+            horizontalAlignment = Alignment.Start
+        ) {
+            Text(
+                text = "🔧 诊断模式",
+                style = MaterialTheme.typography.headlineMedium,
+                color = Color(0xFF1565C0)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            DiagnosticRow("应用版本", BuildConfig.VERSION_NAME)
+            DiagnosticRow("版本号", BuildConfig.VERSION_CODE.toString())
+            DiagnosticRow("Android API", Build.VERSION.SDK_INT.toString())
+            DiagnosticRow("设备", "${Build.MANUFACTURER} ${Build.MODEL}")
+            DiagnosticRow("Hilt 注入", if (hiltInjectionOk) "✅ 成功" else "❌ 失败")
+            if (hiltError != null) {
+                DiagnosticRow("Hilt 错误", hiltError)
+            }
+            DiagnosticRow("Trakt Client ID", if (BuildConfig.TRAKT_CLIENT_ID.isNotEmpty()) "已设置 (${BuildConfig.TRAKT_CLIENT_ID.take(8)}...)" else "❌ 未设置")
+            DiagnosticRow("NeoDB Client ID", if (BuildConfig.NEODB_CLIENT_ID.isNotEmpty()) "已设置 (${BuildConfig.NEODB_CLIENT_ID.take(8)}...)" else "❌ 未设置")
+            DiagnosticRow("Build Type", BuildConfig.BUILD_TYPE)
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF1565C0)
+                )
+            ) {
+                Text("返回正常UI")
+            }
+        }
+    }
+}
+
+@Composable
+private fun DiagnosticRow(label: String, value: String) {
+    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = Color(0xFF78909C)
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color(0xFF263238)
+        )
     }
 }
