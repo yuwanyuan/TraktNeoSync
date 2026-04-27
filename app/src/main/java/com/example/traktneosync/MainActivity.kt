@@ -1,12 +1,15 @@
 package com.example.traktneosync
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sync
@@ -28,6 +31,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.traktneosync.data.neodb.NeoDBOAuthManager
+import com.example.traktneosync.data.trakt.TraktOAuthManager
 import com.example.traktneosync.ui.auth.AuthScreen
 import com.example.traktneosync.ui.movies.MoviesScreen
 import com.example.traktneosync.ui.search.SearchScreen
@@ -35,14 +40,54 @@ import com.example.traktneosync.ui.shows.ShowsScreen
 import com.example.traktneosync.ui.sync.SyncScreen
 import com.example.traktneosync.ui.theme.TraktNeoSyncTheme
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    companion object {
+        private const val TAG = "MainActivity"
+    }
+
+    @Inject lateinit var traktOAuthManager: TraktOAuthManager
+    @Inject lateinit var neodbOAuthManager: NeoDBOAuthManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             TraktNeoSyncTheme {
                 TraktNeoSyncApp()
+            }
+        }
+        // 处理首次启动带 deep link 的情况
+        handleDeepLink(intent?.data)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleDeepLink(intent.data)
+    }
+
+    private fun handleDeepLink(uri: Uri?) {
+        if (uri == null) return
+        Log.d(TAG, "Handling deep link: $uri")
+
+        when (uri.host) {
+            "trakt" -> {
+                CoroutineScope(Dispatchers.IO).launch {
+                    val success = traktOAuthManager.handleCallback(uri)
+                    Log.d(TAG, "Trakt OAuth callback: success=$success")
+                }
+            }
+            "neodb" -> {
+                CoroutineScope(Dispatchers.IO).launch {
+                    val success = neodbOAuthManager.handleCallback(uri)
+                    Log.d(TAG, "NeoDB OAuth callback: success=$success")
+                }
             }
         }
     }
@@ -57,7 +102,7 @@ sealed class BottomNavItem(
     object Shows : BottomNavItem("shows", "剧集", Icons.Default.Tv)
     object Sync : BottomNavItem("sync", "同步", Icons.Default.Sync)
     object Search : BottomNavItem("search", "搜索", Icons.Default.Search)
-    object Settings : BottomNavItem("settings", "设置", Icons.Default.Home)
+    object Account : BottomNavItem("account", "账号", Icons.Default.AccountCircle)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,7 +116,7 @@ fun TraktNeoSyncApp(
         BottomNavItem.Shows,
         BottomNavItem.Sync,
         BottomNavItem.Search,
-        BottomNavItem.Settings
+        BottomNavItem.Account
     )
     
     Scaffold(
@@ -122,7 +167,7 @@ fun TraktNeoSyncApp(
             composable(BottomNavItem.Search.route) {
                 SearchScreen()
             }
-            composable(BottomNavItem.Settings.route) {
+            composable(BottomNavItem.Account.route) {
                 AuthScreen()
             }
         }

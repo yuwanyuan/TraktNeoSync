@@ -23,6 +23,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -88,23 +89,22 @@ fun SyncScreen(
         }
         
         // 待同步列表
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(
-                items = uiState.filteredItems,
-                key = { it.traktItem.ids.trakt }
-            ) { item ->
-                SyncItemCard(
-                    item = item,
-                    onAddToNeoDB = { viewModel.addToNeoDB(item) }
-                )
+        if (uiState.filteredItems.isNotEmpty()) {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(
+                    items = uiState.filteredItems,
+                    key = { it.traktItem.ids.trakt }
+                ) { item ->
+                    SyncItemCard(
+                        item = item,
+                        onAddToNeoDB = { viewModel.addToNeoDB(item) }
+                    )
+                }
             }
-        }
-        
-        // 空状态
-        if (!uiState.isLoading && uiState.filteredItems.isEmpty()) {
+        } else if (!uiState.isLoading) {
             EmptyState(isAuthenticated = uiState.isAuthenticated)
         }
     }
@@ -175,7 +175,7 @@ private fun SyncHeader(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     LinearProgressIndicator(
-                        progress = { syncProgress.current.toFloat() / syncProgress.total },
+                        progress = syncProgress.current.toFloat() / syncProgress.total,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(4.dp))
@@ -212,6 +212,7 @@ private fun SyncHeader(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FilterChips(
     selectedFilter: SyncFilter,

@@ -69,7 +69,7 @@ class SearchViewModel @Inject constructor(
                 }
 
                 val result = neoDBApi.search(
-                    authorization = "Bearer $token",
+                    token = "Bearer $token",
                     query = query,
                     category = category,
                     page = 1
@@ -106,7 +106,7 @@ class SearchViewModel @Inject constructor(
                 )
 
                 neoDBApi.addOrUpdateMark(
-                    authorization = "Bearer $token",
+                    token = "Bearer $token",
                     uuid = entry.uuid,
                     request = request
                 )
