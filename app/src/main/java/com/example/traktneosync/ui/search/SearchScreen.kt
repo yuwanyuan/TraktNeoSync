@@ -1,6 +1,7 @@
 package com.example.traktneosync.ui.search
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -27,7 +28,8 @@ import com.example.traktneosync.data.neodb.NeoDBEntry
 
 @Composable
 fun SearchScreen(
-    viewModel: SearchViewModel = hiltViewModel()
+    viewModel: SearchViewModel = hiltViewModel(),
+    onNavigateToDetail: (NeoDBEntry) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val focusManager = LocalFocusManager.current
@@ -94,7 +96,8 @@ fun SearchScreen(
                     addedUuids = uiState.addedUuids,
                     onAdd = { entry ->
                         viewModel.addToShelf(entry, uiState.shelfType)
-                    }
+                    },
+                    onNavigateToDetail = onNavigateToDetail
                 )
             }
             uiState.hasSearched -> {
@@ -127,7 +130,8 @@ private fun CategoryFilter(
 private fun SearchResultsList(
     results: List<NeoDBEntry>,
     addedUuids: Set<String>,
-    onAdd: (NeoDBEntry) -> Unit
+    onAdd: (NeoDBEntry) -> Unit,
+    onNavigateToDetail: (NeoDBEntry) -> Unit
 ) {
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -137,7 +141,8 @@ private fun SearchResultsList(
             SearchResultCard(
                 entry = entry,
                 isAdded = isAdded,
-                onAdd = { onAdd(entry) }
+                onAdd = { onAdd(entry) },
+                onClick = { onNavigateToDetail(entry) }
             )
         }
     }
@@ -147,10 +152,13 @@ private fun SearchResultsList(
 private fun SearchResultCard(
     entry: NeoDBEntry,
     isAdded: Boolean,
-    onAdd: () -> Unit
+    onAdd: () -> Unit,
+    onClick: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
     ) {
         Row(
             modifier = Modifier

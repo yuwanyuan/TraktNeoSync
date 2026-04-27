@@ -12,6 +12,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -34,6 +35,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -68,6 +70,7 @@ import com.example.traktneosync.ui.shows.ShowsScreen
 import com.example.traktneosync.ui.sync.SyncListItem
 import com.example.traktneosync.ui.sync.SyncScreen
 import com.example.traktneosync.ui.theme.TraktNeoSyncTheme
+import com.example.traktneosync.util.AppLogger
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -87,6 +90,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+
+        // 设置全局异常处理器
+        AppLogger.setupGlobalExceptionHandler(this)
 
         // 检查上次崩溃记录
         val lastCrash = (application as? TraktNeoSyncApp)?.getLastCrash()
@@ -246,9 +252,10 @@ fun TraktNeoSyncApp(
                 MoviesScreen(
                     onNavigateToDetail = { movie ->
                         val encodedTitle = java.net.URLEncoder.encode(movie.title, "UTF-8")
-                        val encodedPoster = java.net.URLEncoder.encode(movie.posterUrl ?: "", "UTF-8")
+                        val encodedPoster = java.net.URLEncoder.encode(movie.posterUrl ?: "_null_", "UTF-8")
+                        val imdbId = movie.imdbId?.takeIf { it.isNotBlank() } ?: "_null_"
                         navController.navigate(
-                            "detail/movie/$encodedTitle/${movie.year ?: 0}/${movie.imdbId ?: ""}/${movie.tmdbId ?: 0}/$encodedPoster/${movie.plays}"
+                            "detail/movie/$encodedTitle/${movie.year ?: 0}/$imdbId/${movie.tmdbId ?: 0}/$encodedPoster/${movie.plays}"
                         )
                     }
                 )
@@ -257,9 +264,10 @@ fun TraktNeoSyncApp(
                 ShowsScreen(
                     onNavigateToDetail = { show ->
                         val encodedTitle = java.net.URLEncoder.encode(show.title, "UTF-8")
-                        val encodedPoster = java.net.URLEncoder.encode(show.posterUrl ?: "", "UTF-8")
+                        val encodedPoster = java.net.URLEncoder.encode(show.posterUrl ?: "_null_", "UTF-8")
+                        val imdbId = show.imdbId?.takeIf { it.isNotBlank() } ?: "_null_"
                         navController.navigate(
-                            "detail/show/$encodedTitle/${show.year ?: 0}/${show.imdbId ?: ""}/${show.tmdbId ?: 0}/$encodedPoster/${show.plays}"
+                            "detail/show/$encodedTitle/${show.year ?: 0}/$imdbId/${show.tmdbId ?: 0}/$encodedPoster/${show.plays}"
                         )
                     }
                 )
@@ -268,16 +276,25 @@ fun TraktNeoSyncApp(
                 SyncScreen(
                     onNavigateToDetail = { item ->
                         val encodedTitle = java.net.URLEncoder.encode(item.title, "UTF-8")
-                        val posterUrl = item.neoDBMark?.item?.coverImageUrl ?: ""
+                        val posterUrl = item.neoDBMark?.item?.coverImageUrl ?: "_null_"
                         val encodedPoster = java.net.URLEncoder.encode(posterUrl, "UTF-8")
                         navController.navigate(
-                            "detail/sync/$encodedTitle/${item.year ?: 0}/0/0/$encodedPoster/0"
+                            "detail/sync/$encodedTitle/${item.year ?: 0}/_null_/_null_/$encodedPoster/0"
                         )
                     }
                 )
             }
             composable(BottomNavItem.Search.route) {
-                SearchScreen()
+                SearchScreen(
+                    onNavigateToDetail = { entry ->
+                        val encodedTitle = java.net.URLEncoder.encode(entry.displayTitle, "UTF-8")
+                        val encodedPoster = java.net.URLEncoder.encode(entry.coverImageUrl ?: "_null_", "UTF-8")
+                        val type = if (entry.category == "movie") "movie" else "show"
+                        navController.navigate(
+                            "detail/$type/$encodedTitle/0/_null_/_null_/$encodedPoster/0"
+                        )
+                    }
+                )
             }
             composable(BottomNavItem.Account.route) {
                 AuthScreen()
@@ -287,13 +304,15 @@ fun TraktNeoSyncApp(
                 val type = backStackEntry.arguments?.getString("type") ?: "movie"
                 val title = backStackEntry.arguments?.getString("title") ?: ""
                 val year = backStackEntry.arguments?.getString("year")?.toIntOrNull()
-                val imdbId = backStackEntry.arguments?.getString("imdbId")
-                val tmdbId = backStackEntry.arguments?.getString("tmdbId")?.toLongOrNull()
-                val posterUrl = backStackEntry.arguments?.getString("posterUrl")?.let { 
-                    if (it == "null" || it.isEmpty()) null else it 
+                val imdbId = backStackEntry.arguments?.getString("imdbId")?.takeIf {
+                    it.isNotBlank() && it != "_null_" && it != "null"
                 }
-                val plays = backStackEntry.arguments?.getString("plays")?.toIntOrNull()
-                
+                val tmdbId = backStackEntry.arguments?.getString("tmdbId")?.toLongOrNull()?.takeIf { it > 0 }
+                val posterUrl = backStackEntry.arguments?.getString("posterUrl")?.takeIf {
+                    it.isNotBlank() && it != "_null_" && it != "null"
+                }
+                val plays = backStackEntry.arguments?.getString("plays")?.toIntOrNull()?.takeIf { it > 0 }
+
                 DetailScreen(
                     title = java.net.URLDecoder.decode(title, "UTF-8"),
                     year = year,
@@ -409,6 +428,10 @@ fun DiagnosticScreen(
     hiltError: String?,
     onDismiss: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var showLogs by remember { mutableStateOf(false) }
+    var logContent by remember { mutableStateOf("") }
+
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = Color(0xFFE3F2FD) // 浅蓝色背景
@@ -440,6 +463,50 @@ fun DiagnosticScreen(
             DiagnosticRow("Trakt Client ID", if (BuildConfig.TRAKT_CLIENT_ID.isNotEmpty()) "已设置 (${BuildConfig.TRAKT_CLIENT_ID.take(8)}...)" else "❌ 未设置")
             DiagnosticRow("NeoDB Client ID", if (BuildConfig.NEODB_CLIENT_ID.isNotEmpty()) "已设置 (${BuildConfig.NEODB_CLIENT_ID.take(8)}...)" else "❌ 未设置")
             DiagnosticRow("Build Type", BuildConfig.BUILD_TYPE)
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = {
+                        logContent = AppLogger.getLogContent(context)
+                        showLogs = !showLogs
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF6A1B9A)
+                    )
+                ) {
+                    Text(if (showLogs) "隐藏日志" else "查看日志")
+                }
+                OutlinedButton(
+                    onClick = {
+                        AppLogger.clearLog(context)
+                        logContent = ""
+                    }
+                ) {
+                    Text("清空日志")
+                }
+            }
+
+            if (showLogs && logContent.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "日志内容:",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = Color(0xFF1565C0)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = logContent,
+                    fontFamily = FontFamily.Monospace,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF263238),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.White)
+                        .padding(8.dp)
+                )
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
