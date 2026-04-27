@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "TraktNeoSync"
-include ':app'
+include(":app")
