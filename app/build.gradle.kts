@@ -15,23 +15,6 @@ if (localPropsFile.exists()) {
     localProps.load(FileInputStream(localPropsFile))
 }
 
-// 签名配置函数 - 支持 GitHub Actions Secrets 和本地配置
-fun getSigningConfig(): com.android.build.api.dsl.ApkSigningConfig? {
-    return if (project.hasProperty("SIGNING_KEY_ALIAS") || 
-               System.getenv("SIGNING_KEY_ALIAS") != null ||
-               localProps.containsKey("SIGNING_KEY_ALIAS")) {
-        signingConfigs.create("release") {
-            keyAlias = System.getenv("SIGNING_KEY_ALIAS") 
-                ?: localProps.getProperty("SIGNING_KEY_ALIAS", "traktneosync")
-            keyPassword = System.getenv("SIGNING_KEY_PASSWORD") 
-                ?: localProps.getProperty("SIGNING_KEY_PASSWORD", "")
-            storeFile = file(System.getenv("KEYSTORE_PATH") ?: "traktneosync.keystore")
-            storePassword = System.getenv("SIGNING_STORE_PASSWORD") 
-                ?: localProps.getProperty("SIGNING_STORE_PASSWORD", "")
-        }
-    } else null
-}
-
 android {
     namespace = "com.example.traktneosync"
     compileSdk = 34
