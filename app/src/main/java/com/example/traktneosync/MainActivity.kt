@@ -3,6 +3,7 @@ package com.example.traktneosync
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -124,24 +125,10 @@ class MainActivity : ComponentActivity() {
                         onDismiss = { showDiagnostic = false }
                     )
                 } else {
-                    // 正常 UI - 包裹 try-catch 防止白屏
-                    try {
-                        TraktNeoSyncApp(
-                            onShowDiagnostic = { showDiagnostic = true }
-                        )
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Compose render error", e)
-                        (application as? TraktNeoSyncApp)?.let { app ->
-                            val trace = Log.getStackTraceString(e)
-                            app.getSharedPreferences("crash_logs", 0)
-                                .edit().putString("last_crash", trace).apply()
-                        }
-                        CrashDiagnosticScreen(
-                            errorMessage = Log.getStackTraceString(e),
-                            hiltError = hiltError,
-                            onDismiss = { showErrorScreen = false }
-                        )
-                    }
+                    // 正常 UI
+                    TraktNeoSyncApp(
+                        onShowDiagnostic = { showDiagnostic = true }
+                    )
                 }
             }
         }
