@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -21,7 +22,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -30,6 +30,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.traktneosync.ui.auth.AuthScreen
 import com.example.traktneosync.ui.movies.MoviesScreen
+import com.example.traktneosync.ui.search.SearchScreen
 import com.example.traktneosync.ui.shows.ShowsScreen
 import com.example.traktneosync.ui.sync.SyncScreen
 import com.example.traktneosync.ui.theme.TraktNeoSyncTheme
@@ -55,6 +56,7 @@ sealed class BottomNavItem(
     object Movies : BottomNavItem("movies", "电影", Icons.Default.Movie)
     object Shows : BottomNavItem("shows", "剧集", Icons.Default.Tv)
     object Sync : BottomNavItem("sync", "同步", Icons.Default.Sync)
+    object Search : BottomNavItem("search", "搜索", Icons.Default.Search)
     object Settings : BottomNavItem("settings", "设置", Icons.Default.Home)
 }
 
@@ -68,6 +70,7 @@ fun TraktNeoSyncApp(
         BottomNavItem.Movies,
         BottomNavItem.Shows,
         BottomNavItem.Sync,
+        BottomNavItem.Search,
         BottomNavItem.Settings
     )
     
@@ -115,6 +118,9 @@ fun TraktNeoSyncApp(
             }
             composable(BottomNavItem.Sync.route) {
                 SyncScreen()
+            }
+            composable(BottomNavItem.Search.route) {
+                SearchScreen(navController)
             }
             composable(BottomNavItem.Settings.route) {
                 AuthScreen()

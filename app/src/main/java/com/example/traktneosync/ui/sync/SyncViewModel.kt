@@ -233,6 +233,7 @@ class SyncViewModel @Inject constructor(
     fun syncAll() {
         viewModelScope.launch {
             val unsyncedItems = _uiState.value.items.filter { !it.isSynced }
+            if (unsyncedItems.isEmpty()) return@launch
 
             unsyncedItems.forEachIndexed { index, item ->
                 _uiState.value = _uiState.value.copy(
@@ -242,10 +243,40 @@ class SyncViewModel @Inject constructor(
                         currentTitle = item.title
                     )
                 )
-                addToNeoDB(item)
+                
+                val shelfType = when {
+                    item.status.startsWith("已观看") -> "complete"
+                    item.status == "待看" -> "wishlist"
+                    else -> "wishlist"
+                }
+                
+                val result = syncRepository.addToNeoDB(item.traktItem, shelfType)
+                result.fold(
+                    onSuccess = {
+                        // 更新列表状态
+                        val updatedItems = _uiState.value.items.map { listItem ->
+                            if (listItem.traktItem.ids.trakt == item.traktItem.ids.trakt) {
+                                listItem.copy(isSynced = true)
+                            } else listItem
+                        }
+                        _uiState.value = _uiState.value.copy(items = updatedItems)
+                    },
+                    onFailure = { error ->
+                        // 记录错误但继续
+                        Log.e(TAG, "Failed to add ${item.title}: ${error.message}")
+                    }
+                )
             }
 
             _uiState.value = _uiState.value.copy(syncProgress = null)
+            
+            // 更新统计
+            val stats = mapOf(
+                "全部" to _uiState.value.items.size,
+                "未同步" to _uiState.value.items.count { !it.isSynced },
+                "已同步" to _uiState.value.items.count { it.isSynced }
+            )
+            _uiState.value = _uiState.value.copy(stats = stats)
         }
     }
 

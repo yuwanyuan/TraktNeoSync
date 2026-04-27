@@ -72,6 +72,7 @@ fun SyncScreen(
         SyncHeader(
             isLoading = uiState.isLoading,
             hasMore = uiState.hasMoreItems,
+            syncProgress = uiState.syncProgress,
             onSync = { viewModel.syncNextBatch() },
             onSyncAll = { viewModel.syncAll() },
             isAuthenticated = uiState.isAuthenticated
@@ -120,6 +121,7 @@ fun SyncScreen(
 private fun SyncHeader(
     isLoading: Boolean,
     hasMore: Boolean,
+    syncProgress: SyncProgress?,
     onSync: () -> Unit,
     onSyncAll: () -> Unit,
     isAuthenticated: Boolean
@@ -161,6 +163,35 @@ private fun SyncHeader(
                 CircularProgressIndicator(
                     modifier = Modifier.size(48.dp)
                 )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "正在检查同步状态...",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            } else if (syncProgress != null) {
+                // 批量同步进度条
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "正在同步: ${syncProgress.currentTitle}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LinearProgressIndicator(
+                        progress = { syncProgress.current.toFloat() / syncProgress.total },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "${syncProgress.current} / ${syncProgress.total}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             } else {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
