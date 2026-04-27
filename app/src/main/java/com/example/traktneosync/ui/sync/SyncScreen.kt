@@ -23,23 +23,17 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
-import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -47,7 +41,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.traktneosync.data.SyncRepository
 
 @Composable
 fun SyncScreen(
@@ -346,47 +339,4 @@ private fun EmptyState(isAuthenticated: Boolean) {
     }
 }
 
-// ========== ViewModel 数据类 ==========
 
-enum class SyncFilter(val label: String) {
-    ALL("全部"),
-    NOT_SYNCED("待添加"),
-    SYNCED("已添加"),
-    MOVIES("电影"),
-    SHOWS("剧集")
-}
-
-data class SyncListItem(
-    val title: String,
-    val year: Int?,
-    val type: String, // "电影" or "剧集"
-    val status: String, // "已观看" or "待看"
-    val isSynced: Boolean,
-    val traktItem: SyncRepository.TraktItem
-)
-
-data class SyncUiState(
-    val isLoading: Boolean = false,
-    val isAuthenticated: Boolean = false,
-    val items: List<SyncListItem> = emptyList(),
-    val filter: SyncFilter = SyncFilter.NOT_SYNCED,
-    val hasMoreItems: Boolean = false,
-    val syncProgress: SyncProgress? = null,
-    val syncError: String? = null,
-    val stats: Map<String, Int> = emptyMap()
-) {
-    val filteredItems: List<SyncListItem>
-        get() = when (filter) {
-            SyncFilter.ALL -> items
-            SyncFilter.NOT_SYNCED -> items.filter { !it.isSynced }
-            SyncFilter.SYNCED -> items.filter { it.isSynced }
-            SyncFilter.MOVIES -> items.filter { it.type == "电影" }
-            SyncFilter.SHOWS -> items.filter { it.type == "剧集" }
-        }
-}
-
-data class SyncProgress(
-    val current: Int,
-    val total: Int,
-    val currentTitle: String
-)

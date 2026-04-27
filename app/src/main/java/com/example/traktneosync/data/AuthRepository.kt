@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -70,6 +71,6 @@ class AuthRepository @Inject constructor(
     suspend fun isLoggedIn(): Boolean {
         return dataStore.data.map { 
             it[Keys.TRAKT_ACCESS_TOKEN] != null && it[Keys.NEODB_ACCESS_TOKEN] != null 
-        }.map { it }.collect { return it }
+        }.first()
     }
 }

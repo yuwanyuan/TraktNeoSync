@@ -10,6 +10,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -68,7 +69,8 @@ class TraktOAuthManager @Inject constructor(
                 val tokenRequest = TraktTokenRequest(
                     code = deviceCode,
                     clientId = BuildConfig.TRAKT_CLIENT_ID,
-                    clientSecret = BuildConfig.TRAKT_CLIENT_SECRET
+                    clientSecret = BuildConfig.TRAKT_CLIENT_SECRET,
+                    grantType = "urn:ietf:params:oauth:grant-type:device_code"
                 )
                 val tokenResponse = traktApi.exchangeToken(tokenRequest)
                 
