@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
+import java.net.URLEncoder
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -118,10 +119,11 @@ class TraktOAuthManager @Inject constructor(
     // ========== 传统 OAuth Flow ==========
     
     fun getAuthorizationUrl(): String {
+        val encodedRedirectUri = URLEncoder.encode(REDIRECT_URI, "UTF-8")
         return "https://trakt.tv/oauth/authorize?" +
                 "response_type=code&" +
                 "client_id=${BuildConfig.TRAKT_CLIENT_ID}&" +
-                "redirect_uri=$REDIRECT_URI"
+                "redirect_uri=$encodedRedirectUri"
     }
     
     suspend fun handleCallback(uri: Uri): Boolean = withContext(Dispatchers.IO) {

@@ -10,6 +10,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import java.net.URLEncoder
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -75,10 +76,11 @@ class NeoDBOAuthManager @Inject constructor(
     // ========== OAuth URL ==========
     
     fun getAuthorizationUrl(): String {
+        val encodedRedirectUri = URLEncoder.encode(REDIRECT_URI, "UTF-8")
         return "https://$currentInstance/oauth/authorize?" +
                 "response_type=code&" +
                 "client_id=$currentClientId&" +
-                "redirect_uri=$REDIRECT_URI&" +
+                "redirect_uri=$encodedRedirectUri&" +
                 "scope=read+write"
     }
     
