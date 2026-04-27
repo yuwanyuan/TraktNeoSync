@@ -42,18 +42,20 @@ object AppModule {
     @Provides
     @Singleton
     @TraktHttpClient
-    fun provideTraktHttpClient(): OkHttpClient {
+    fun provideTraktHttpClient(langProvider: TmdbLanguageProvider): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
         }
-        
+
         return OkHttpClient.Builder()
             .addInterceptor(logging)
             .addInterceptor(Interceptor { chain ->
+                val lang = langProvider.language.takeIf { it.isNotEmpty() } ?: "zh-CN"
                 val request = chain.request().newBuilder()
                     .addHeader("Content-Type", "application/json")
                     .addHeader("trakt-api-version", "2")
                     .addHeader("trakt-api-key", BuildConfig.TRAKT_CLIENT_ID)
+                    .addHeader("Accept-Language", lang.take(2))
                     .build()
                 chain.proceed(request)
             })

@@ -1,5 +1,6 @@
 package com.example.traktneosync.ui.settings
 
+import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -11,10 +12,12 @@ import com.example.traktneosync.data.tmdb.TmdbApiService
 import com.example.traktneosync.data.trakt.TraktOAuthManager
 import com.example.traktneosync.util.AppLogger
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import java.io.File
 import javax.inject.Inject
 
 @HiltViewModel
@@ -25,6 +28,7 @@ class SettingsViewModel @Inject constructor(
     private val tmdbApi: TmdbApiService,
     private val tmdbKeyProvider: TmdbApiKeyProvider,
     private val cacheDao: CacheDao,
+    @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
     companion object {
@@ -37,6 +41,9 @@ class SettingsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            // 初始化缓存大小
+            refreshCacheSize()
+
             combine(
                 authRepository.traktAccessToken,
                 authRepository.traktUser,
@@ -51,7 +58,7 @@ class SettingsViewModel @Inject constructor(
                 val neodbUser = values[3]
                 val tmdbKey = values[4]
                 val lang = values[5]
-                SettingsUiState(
+                _uiState.value.copy(
                     traktConnected = traktToken != null,
                     traktUsername = traktUser,
                     neodbConnected = neodbToken != null,
@@ -62,6 +69,38 @@ class SettingsViewModel @Inject constructor(
             }.collect { state ->
                 _uiState.value = state
             }
+        }
+    }
+
+    fun refreshCacheSize() {
+        viewModelScope.launch {
+            val size = calculateCacheSize()
+            _uiState.value = _uiState.value.copy(cacheSize = size)
+        }
+    }
+
+    private fun calculateCacheSize(): String {
+        return try {
+            val dbFile = context.getDatabasePath("traktneosync_cache.db")
+            val walFile = File(dbFile.parent, "${dbFile.name}-wal")
+            val shmFile = File(dbFile.parent, "${dbFile.name}-shm")
+            val logFile = File(context.filesDir, "app_crash_log.txt")
+
+            var totalBytes = 0L
+            listOf(dbFile, walFile, shmFile, logFile).forEach { f ->
+                if (f.exists()) totalBytes += f.length()
+            }
+            formatBytes(totalBytes)
+        } catch (e: Exception) {
+            "0 B"
+        }
+    }
+
+    private fun formatBytes(bytes: Long): String {
+        return when {
+            bytes >= 1024 * 1024 -> String.format("%.2f MB", bytes / (1024.0 * 1024.0))
+            bytes >= 1024 -> String.format("%.2f KB", bytes / 1024.0)
+            else -> "$bytes B"
         }
     }
 
@@ -148,6 +187,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 cacheDao.clearAllCache()
+                refreshCacheSize()
                 AppLogger.log("SettingsViewModel: 用户手动清理了全部缓存")
                 onDone()
             } catch (e: Exception) {
@@ -169,4 +209,5 @@ data class SettingsUiState(
     val tmdbKeyTesting: Boolean = false,
     val tmdbKeyValid: Boolean? = null,
     val preferredLanguage: String = "zh-CN",
+    val cacheSize: String = "0 B",
 )

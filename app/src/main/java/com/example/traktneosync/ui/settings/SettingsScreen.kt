@@ -9,11 +9,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -36,12 +38,41 @@ fun SettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    var currentPage by remember { mutableStateOf("main") }
 
+    when (currentPage) {
+        "preferences" -> PreferencesScreen(
+            uiState = uiState,
+            onBack = { currentPage = "main" },
+            onLanguageChange = { viewModel.setPreferredLanguage(it) },
+            onClearCache = {
+                viewModel.clearCache {
+                    Toast.makeText(context, "缓存已清理", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onOpenGithub = {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(SettingsViewModel.GITHUB_REPO_URL))
+                context.startActivity(intent)
+            }
+        )
+        else -> SettingsMainScreen(
+            uiState = uiState,
+            onNavigateToPreferences = { currentPage = "preferences" },
+            viewModel = viewModel
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsMainScreen(
+    uiState: SettingsUiState,
+    onNavigateToPreferences: () -> Unit,
+    viewModel: SettingsViewModel
+) {
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("设置") }
-            )
+            TopAppBar(title = { Text("设置") })
         }
     ) { paddingValues ->
         LazyColumn(
@@ -53,12 +84,8 @@ fun SettingsScreen(
         ) {
             item { Spacer(modifier = Modifier.height(4.dp)) }
 
-            // ========== 账号区域 ==========
-            item {
-                SectionTitle("账号绑定")
-            }
+            item { SectionTitle("账号绑定") }
 
-            // Trakt 认证卡片
             item {
                 AuthCard(
                     title = "Trakt",
@@ -73,7 +100,6 @@ fun SettingsScreen(
                 )
             }
 
-            // NeoDB 认证卡片
             item {
                 AuthCard(
                     title = "NeoDB",
@@ -88,12 +114,8 @@ fun SettingsScreen(
                 )
             }
 
-            // ========== 影视显示设置 ==========
-            item {
-                SectionTitle("影视显示")
-            }
+            item { SectionTitle("影视显示") }
 
-            // TMDB API Key 配置
             item {
                 TmdbKeyCard(
                     currentKey = uiState.tmdbApiKey,
@@ -104,38 +126,99 @@ fun SettingsScreen(
                 )
             }
 
-            // 首选显示语言
+            item { SectionTitle("应用") }
+
+            item {
+                ElevatedCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onNavigateToPreferences)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "偏好设置",
+                            modifier = Modifier.size(36.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "偏好设置",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "语言、缓存、GitHub",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Text(
+                            text = "›",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            item { Spacer(modifier = Modifier.height(16.dp)) }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PreferencesScreen(
+    uiState: SettingsUiState,
+    onBack: () -> Unit,
+    onLanguageChange: (String) -> Unit,
+    onClearCache: () -> Unit,
+    onOpenGithub: () -> Unit
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("偏好设置") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "返回")
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item { Spacer(modifier = Modifier.height(4.dp)) }
+
             item {
                 LanguageCard(
                     currentLanguage = uiState.preferredLanguage,
-                    onLanguageChange = { viewModel.setPreferredLanguage(it) }
+                    onLanguageChange = onLanguageChange
                 )
             }
 
-            // ========== 应用设置 ==========
-            item {
-                SectionTitle("应用")
-            }
-
-            // 清理缓存
             item {
                 ClearCacheCard(
-                    onClear = {
-                        viewModel.clearCache {
-                            Toast.makeText(context, "缓存已清理", Toast.LENGTH_SHORT).show()
-                        }
-                    }
+                    cacheSize = uiState.cacheSize,
+                    onClear = onClearCache
                 )
             }
 
-            // GitHub 仓库
             item {
-                GithubCard(
-                    onOpen = {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(SettingsViewModel.GITHUB_REPO_URL))
-                        context.startActivity(intent)
-                    }
-                )
+                GithubCard(onOpen = onOpenGithub)
             }
 
             item { Spacer(modifier = Modifier.height(16.dp)) }
@@ -244,7 +327,7 @@ private fun LanguageCard(
 }
 
 @Composable
-private fun ClearCacheCard(onClear: () -> Unit) {
+private fun ClearCacheCard(cacheSize: String, onClear: () -> Unit) {
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
@@ -267,7 +350,7 @@ private fun ClearCacheCard(onClear: () -> Unit) {
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "清除本地保存的列表和海报缓存",
+                    text = "占用: $cacheSize · 清除列表和海报缓存",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
