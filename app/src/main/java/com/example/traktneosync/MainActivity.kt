@@ -59,9 +59,13 @@ import androidx.navigation.compose.rememberNavController
 import com.example.traktneosync.data.neodb.NeoDBOAuthManager
 import com.example.traktneosync.data.trakt.TraktOAuthManager
 import com.example.traktneosync.ui.auth.AuthScreen
+import com.example.traktneosync.ui.detail.DetailScreen
+import com.example.traktneosync.ui.movies.MovieItem
 import com.example.traktneosync.ui.movies.MoviesScreen
 import com.example.traktneosync.ui.search.SearchScreen
+import com.example.traktneosync.ui.shows.ShowItem
 import com.example.traktneosync.ui.shows.ShowsScreen
+import com.example.traktneosync.ui.sync.SyncListItem
 import com.example.traktneosync.ui.sync.SyncScreen
 import com.example.traktneosync.ui.theme.TraktNeoSyncTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -239,19 +243,61 @@ fun TraktNeoSyncApp(
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(BottomNavItem.Movies.route) {
-                MoviesScreen()
+                MoviesScreen(
+                    onNavigateToDetail = { movie ->
+                        navController.navigate(
+                            "detail/movie/${movie.title}/${movie.year ?: 0}/${movie.imdbId ?: ""}/${movie.tmdbId ?: 0}/${movie.posterUrl ?: ""}/${movie.plays}"
+                        )
+                    }
+                )
             }
             composable(BottomNavItem.Shows.route) {
-                ShowsScreen()
+                ShowsScreen(
+                    onNavigateToDetail = { show ->
+                        navController.navigate(
+                            "detail/show/${show.title}/${show.year ?: 0}/${show.imdbId ?: ""}/${show.tmdbId ?: 0}/${show.posterUrl ?: ""}/${show.plays}"
+                        )
+                    }
+                )
             }
             composable(BottomNavItem.Sync.route) {
-                SyncScreen()
+                SyncScreen(
+                    onNavigateToDetail = { item ->
+                        val posterUrl = item.neoDBMark?.item?.coverImageUrl ?: ""
+                        navController.navigate(
+                            "detail/sync/${item.title}/${item.year ?: 0}/0/0/$posterUrl/0"
+                        )
+                    }
+                )
             }
             composable(BottomNavItem.Search.route) {
                 SearchScreen()
             }
             composable(BottomNavItem.Account.route) {
                 AuthScreen()
+            }
+            // 详情页面
+            composable("detail/{type}/{title}/{year}/{imdbId}/{tmdbId}/{posterUrl}/{plays}") { backStackEntry ->
+                val type = backStackEntry.arguments?.getString("type") ?: "movie"
+                val title = backStackEntry.arguments?.getString("title") ?: ""
+                val year = backStackEntry.arguments?.getString("year")?.toIntOrNull()
+                val imdbId = backStackEntry.arguments?.getString("imdbId")
+                val tmdbId = backStackEntry.arguments?.getString("tmdbId")?.toLongOrNull()
+                val posterUrl = backStackEntry.arguments?.getString("posterUrl")?.let { 
+                    if (it == "null" || it.isEmpty()) null else it 
+                }
+                val plays = backStackEntry.arguments?.getString("plays")?.toIntOrNull()
+                
+                DetailScreen(
+                    title = java.net.URLDecoder.decode(title, "UTF-8"),
+                    year = year,
+                    type = if (type == "movie" || type == "sync") "电影" else "剧集",
+                    posterUrl = posterUrl,
+                    imdbId = imdbId,
+                    tmdbId = tmdbId,
+                    plays = plays,
+                    onBack = { navController.popBackStack() }
+                )
             }
         }
     }
