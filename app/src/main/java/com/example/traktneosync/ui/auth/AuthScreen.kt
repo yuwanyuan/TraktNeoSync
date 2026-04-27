@@ -30,8 +30,11 @@ fun AuthScreen(
             icon = Icons.Default.AccountCircle,
             isConnected = uiState.traktConnected,
             username = uiState.traktUsername,
+            isLoading = false,
+            error = null,
             onConnect = { viewModel.connectTrakt() },
-            onDisconnect = { viewModel.disconnectTrakt() }
+            onDisconnect = { viewModel.disconnectTrakt() },
+            onClearError = {}
         )
 
         // NeoDB 认证卡片
@@ -40,8 +43,11 @@ fun AuthScreen(
             icon = Icons.Default.AccountCircle,
             isConnected = uiState.neodbConnected,
             username = uiState.neodbUsername,
+            isLoading = uiState.neodbLoading,
+            error = uiState.neodbError,
             onConnect = { viewModel.connectNeoDB() },
-            onDisconnect = { viewModel.disconnectNeoDB() }
+            onDisconnect = { viewModel.disconnectNeoDB() },
+            onClearError = { viewModel.clearNeoDBError() }
         )
 
         Spacer(modifier = Modifier.weight(1f))
@@ -73,54 +79,76 @@ private fun AuthCard(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     isConnected: Boolean,
     username: String?,
+    isLoading: Boolean,
+    error: String?,
     onConnect: () -> Unit,
-    onDisconnect: () -> Unit
+    onDisconnect: () -> Unit,
+    onClearError: () -> Unit
 ) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = title,
-                    modifier = Modifier.size(40.dp),
-                    tint = if (isConnected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
-                )
-                Column {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleLarge
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = title,
+                        modifier = Modifier.size(40.dp),
+                        tint = if (isConnected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
                     )
-                    Text(
-                        text = if (isConnected) {
-                            "已登录: $username"
-                        } else {
-                            "未登录"
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (isConnected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                    Column {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                        Text(
+                            text = if (isConnected) {
+                                "已登录: $username"
+                            } else {
+                                "未登录"
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (isConnected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(32.dp),
+                        strokeWidth = 2.dp
                     )
+                } else if (isConnected) {
+                    OutlinedButton(onClick = onDisconnect) {
+                        Text("断开")
+                    }
+                } else {
+                    Button(onClick = onConnect) {
+                        Text("登录")
+                    }
                 }
             }
 
-            if (isConnected) {
-                OutlinedButton(onClick = onDisconnect) {
-                    Text("断开")
-                }
-            } else {
-                Button(onClick = onConnect) {
-                    Text("登录")
-                }
+            // 错误提示
+            if (error != null) {
+                Text(
+                    text = error,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
             }
         }
     }
