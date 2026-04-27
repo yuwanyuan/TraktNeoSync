@@ -117,7 +117,6 @@ fun SearchScreen(
             uiState.results.isNotEmpty() -> {
                 SearchResultsList(
                     results = uiState.results,
-                    addedUuids = uiState.addedUuids,
                     onAddToShelf = { entry, shelfType ->
                         viewModel.addToShelf(entry, shelfType)
                     },
@@ -156,7 +155,6 @@ private fun CategoryFilter(
 @Composable
 private fun SearchResultsList(
     results: List<NeoDBEntry>,
-    addedUuids: Set<String>,
     onAddToShelf: (NeoDBEntry, String) -> Unit,
     onRate: (NeoDBEntry) -> Unit,
     onNavigateToDetail: (NeoDBEntry) -> Unit
@@ -165,10 +163,8 @@ private fun SearchResultsList(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items(results) { entry ->
-            val isAdded = entry.uuid in addedUuids
             SearchResultCard(
                 entry = entry,
-                isAdded = isAdded,
                 onAddToShelf = { shelfType -> onAddToShelf(entry, shelfType) },
                 onRate = { onRate(entry) },
                 onClick = { onNavigateToDetail(entry) }
@@ -180,7 +176,6 @@ private fun SearchResultsList(
 @Composable
 private fun SearchResultCard(
     entry: NeoDBEntry,
-    isAdded: Boolean,
     onAddToShelf: (String) -> Unit,
     onRate: () -> Unit,
     onClick: () -> Unit
