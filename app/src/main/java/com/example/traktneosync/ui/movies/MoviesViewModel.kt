@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.traktneosync.data.SyncRepository
+import com.example.traktneosync.data.tmdb.TmdbApiService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -12,7 +13,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class MoviesViewModel @Inject constructor(
-    private val syncRepository: SyncRepository
+    private val syncRepository: SyncRepository,
+    private val tmdbApi: TmdbApiService,
 ) : ViewModel() {
 
     companion object {
@@ -36,8 +38,7 @@ class MoviesViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isLoading = true)
 
             val items = try {
-                if (_uiState.value.selectedTab == 0) {
-                    // 已观看
+                val rawItems = if (_uiState.value.selectedTab == 0) {
                     syncRepository.getTraktWatchedMovies().map { watched ->
                         watched.movie?.let { movie ->
                             MovieItem(
@@ -46,12 +47,11 @@ class MoviesViewModel @Inject constructor(
                                 plays = watched.plays,
                                 imdbId = movie.ids.imdb,
                                 tmdbId = movie.ids.tmdb,
-                                posterUrl = buildPosterUrl(movie.ids.tmdb)
+                                posterUrl = null
                             )
                         }
                     }.filterNotNull()
                 } else {
-                    // 待看
                     syncRepository.getTraktMovieWatchlist().map { item ->
                         item.movie?.let { movie ->
                             MovieItem(
@@ -59,10 +59,15 @@ class MoviesViewModel @Inject constructor(
                                 year = movie.year,
                                 imdbId = movie.ids.imdb,
                                 tmdbId = movie.ids.tmdb,
-                                posterUrl = buildPosterUrl(movie.ids.tmdb)
+                                posterUrl = null
                             )
                         }
                     }.filterNotNull()
+                }
+                // 异步获取 TMDB 海报
+                rawItems.map { item ->
+                    val posterUrl = item.tmdbId?.let { fetchTmdbPoster(it, isMovie = true) }
+                    item.copy(posterUrl = posterUrl)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading movies: ${e.message}")
@@ -76,11 +81,18 @@ class MoviesViewModel @Inject constructor(
         }
     }
 
-    private fun buildPosterUrl(tmdbId: Long?): String? {
-        // 使用 TMDB 图片服务构造海报 URL
-        // 实际项目中可能需要调用 TMDB API 获取实际的 poster_path
-        // 这里使用 TMDB 的占位图服务
-        return tmdbId?.let { "https://www.themoviedb.org/t/p/w200${it}" }
+    private suspend fun fetchTmdbPoster(tmdbId: Long, isMovie: Boolean): String? {
+        return try {
+            val path = if (isMovie) {
+                tmdbApi.getMovieDetail(tmdbId).posterPath
+            } else {
+                tmdbApi.getTvDetail(tmdbId).posterPath
+            }
+            path?.let { "https://image.tmdb.org/t/p/w200$it" }
+        } catch (e: Exception) {
+            Log.w(TAG, "TMDB fetch failed for id=$tmdbId: ${e.message}")
+            null
+        }
     }
 }
 

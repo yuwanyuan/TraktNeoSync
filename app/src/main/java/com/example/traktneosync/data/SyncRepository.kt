@@ -248,27 +248,27 @@ class SyncRepository @Inject constructor(
         wishlistTV: List<NeoDBMark>
     ): NeoDBMark? {
         val allNeoDBMarks = completedMovies + completedTV + wishlistMovies + wishlistTV
-        
-        // 优先用 IMDB ID 匹配
-        traktItem.ids.imdb?.let { imdbId ->
-            allNeoDBMarks.find { mark ->
-                mark.item.externalResources.any { it.url.contains(imdbId, ignoreCase = true) }
-            }?.let { return it }
-        }
-        
-        // 次选用 TMDB ID 匹配
+
+        // 优先用 TMDB ID 匹配（最稳定）
         traktItem.ids.tmdb?.let { tmdbId ->
             allNeoDBMarks.find { mark ->
                 mark.item.externalResources.any { it.url.contains(tmdbId.toString()) }
             }?.let { return it }
         }
-        
+
+        // 次选用 IMDB ID 匹配
+        traktItem.ids.imdb?.let { imdbId ->
+            allNeoDBMarks.find { mark ->
+                mark.item.externalResources.any { it.url.contains(imdbId, ignoreCase = true) }
+            }?.let { return it }
+        }
+
         // 最后尝试标题 + 年份匹配
         return allNeoDBMarks.find { mark ->
             val titleMatch = mark.item.displayTitle.equals(traktItem.title, ignoreCase = true) ||
                     mark.item.displayTitle.contains(traktItem.title, ignoreCase = true) ||
                     traktItem.title.contains(mark.item.displayTitle, ignoreCase = true)
-            
+
             titleMatch && (traktItem.year == null || mark.item.brief.contains(traktItem.year.toString()))
         }
     }

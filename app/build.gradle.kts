@@ -30,6 +30,7 @@ android {
         buildConfigField("String", "TRAKT_CLIENT_SECRET", "\"${System.getenv("TRAKT_CLIENT_SECRET") ?: localProps.getProperty("traktClientSecret", "")}\"")
         buildConfigField("String", "NEODB_CLIENT_ID", "\"${System.getenv("NEODB_CLIENT_ID") ?: localProps.getProperty("neodbClientId", "")}\"")
         buildConfigField("String", "NEODB_CLIENT_SECRET", "\"${System.getenv("NEODB_CLIENT_SECRET") ?: localProps.getProperty("neodbClientSecret", "")}\"")
+        buildConfigField("String", "TMDB_API_KEY", "\"${System.getenv("TMDB_API_KEY") ?: localProps.getProperty("tmdbApiKey", "")}\"")
     }
 
     signingConfigs {

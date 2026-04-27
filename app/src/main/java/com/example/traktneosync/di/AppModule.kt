@@ -7,6 +7,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.example.traktneosync.BuildConfig
 import com.example.traktneosync.data.neodb.NeoDBApiService
 import com.example.traktneosync.data.neodb.NeoDBBaseUrlProvider
+import com.example.traktneosync.data.tmdb.TmdbApiService
 import com.example.traktneosync.data.trakt.TraktApiService
 import dagger.Module
 import dagger.Provides
@@ -111,6 +112,37 @@ object AppModule {
     @Singleton
     fun provideNeoDBApiService(@NeoDBRetrofit retrofit: Retrofit): NeoDBApiService {
         return retrofit.create(NeoDBApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideTmdbHttpClient(): OkHttpClient {
+        val logging = HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.BASIC
+        }
+        return OkHttpClient.Builder()
+            .addInterceptor(logging)
+            .addInterceptor(Interceptor { chain ->
+                val original = chain.request()
+                val url = original.url.newBuilder()
+                    .addQueryParameter("api_key", BuildConfig.TMDB_API_KEY)
+                    .addQueryParameter("language", "zh-CN")
+                    .build()
+                val request = original.newBuilder().url(url).build()
+                chain.proceed(request)
+            })
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideTmdbApiService(client: OkHttpClient): TmdbApiService {
+        return Retrofit.Builder()
+            .baseUrl("https://api.themoviedb.org/3/")
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(TmdbApiService::class.java)
     }
 }
 
