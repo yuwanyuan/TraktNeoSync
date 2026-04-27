@@ -34,6 +34,15 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       
+      # 从 Base64 解码 keystore（仅 release 构建）
+      - name: Decode keystore
+        if: github.event.inputs.build_type == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+        run: |
+          if [ -n "${{ secrets.SIGNING_KEY_BASE64 }}" ]; then
+            echo "${{ secrets.SIGNING_KEY_BASE64 }}" | base64 -d > app/traktneosync.keystore
+            echo "Keystore decoded successfully"
+          fi
+      
       - name: Build Debug APK
         if: github.event.inputs.build_type != 'release'
         run: ./gradlew assembleDebug
@@ -45,7 +54,6 @@ jobs:
           SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
           SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
-          SIGNING_KEY_BASE64: ${{ secrets.SIGNING_KEY_BASE64 }}
       
       - name: Upload Debug APK
         if: github.event.inputs.build_type != 'release'

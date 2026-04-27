@@ -8,6 +8,30 @@ plugins {
     id("kotlin-kapt")
 }
 
+// 读取 local.properties 或环境变量
+val localProps = Properties()
+val localPropsFile = rootProject.file("local.properties")
+if (localPropsFile.exists()) {
+    localProps.load(FileInputStream(localPropsFile))
+}
+
+// 签名配置函数 - 支持 GitHub Actions Secrets 和本地配置
+fun getSigningConfig(): com.android.build.api.dsl.ApkSigningConfig? {
+    return if (project.hasProperty("SIGNING_KEY_ALIAS") || 
+               System.getenv("SIGNING_KEY_ALIAS") != null ||
+               localProps.containsKey("SIGNING_KEY_ALIAS")) {
+        signingConfigs.create("release") {
+            keyAlias = System.getenv("SIGNING_KEY_ALIAS") 
+                ?: localProps.getProperty("SIGNING_KEY_ALIAS", "traktneosync")
+            keyPassword = System.getenv("SIGNING_KEY_PASSWORD") 
+                ?: localProps.getProperty("SIGNING_KEY_PASSWORD", "")
+            storeFile = file(System.getenv("KEYSTORE_PATH") ?: "traktneosync.keystore")
+            storePassword = System.getenv("SIGNING_STORE_PASSWORD") 
+                ?: localProps.getProperty("SIGNING_STORE_PASSWORD", "")
+        }
+    } else null
+}
+
 android {
     namespace = "com.example.traktneosync"
     compileSdk = 34
@@ -18,18 +42,23 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
-
-        // Trakt API Keys - 从 local.properties 读取或留空
-        val localProps = Properties()
-        val localPropsFile = rootProject.file("local.properties")
-        if (localPropsFile.exists()) {
-            localProps.load(FileInputStream(localPropsFile))
-        }
         
         buildConfigField("String", "TRAKT_CLIENT_ID", "\"${localProps.getProperty("traktClientId", "")}\"")
         buildConfigField("String", "TRAKT_CLIENT_SECRET", "\"${localProps.getProperty("traktClientSecret", "")}\"")
         buildConfigField("String", "NEODB_CLIENT_ID", "\"${localProps.getProperty("neodbClientId", "")}\"")
         buildConfigField("String", "NEODB_CLIENT_SECRET", "\"${localProps.getProperty("neodbClientSecret", "")}\"")
+    }
+
+    signingConfigs {
+        create("release") {
+            keyAlias = System.getenv("SIGNING_KEY_ALIAS") 
+                ?: localProps.getProperty("SIGNING_KEY_ALIAS", "traktneosync")
+            keyPassword = System.getenv("SIGNING_KEY_PASSWORD") 
+                ?: localProps.getProperty("SIGNING_KEY_PASSWORD", "")
+            storeFile = file(System.getenv("KEYSTORE_PATH") ?: "traktneosync.keystore")
+            storePassword = System.getenv("SIGNING_STORE_PASSWORD") 
+                ?: localProps.getProperty("SIGNING_STORE_PASSWORD", "")
+        }
     }
 
     buildTypes {
@@ -39,6 +68,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     
