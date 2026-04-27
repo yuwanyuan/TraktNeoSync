@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.traktneosync.data.AuthRepository
 import com.example.traktneosync.data.neodb.NeoDBOAuthManager
+import com.example.traktneosync.data.tmdb.TmdbApiKeyProvider
+import com.example.traktneosync.data.tmdb.TmdbApiService
 import com.example.traktneosync.data.trakt.TraktOAuthManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,7 +19,9 @@ import javax.inject.Inject
 class AuthViewModel @Inject constructor(
     private val traktOAuthManager: TraktOAuthManager,
     private val neodbOAuthManager: NeoDBOAuthManager,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val tmdbApi: TmdbApiService,
+    private val tmdbKeyProvider: TmdbApiKeyProvider,
 ) : ViewModel() {
 
     companion object {
@@ -94,6 +98,32 @@ class AuthViewModel @Inject constructor(
             authRepository.setTmdbApiKey(key)
         }
     }
+
+    fun testTmdbApiKey(key: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(tmdbKeyTesting = true, tmdbKeyValid = null)
+            val trimmed = key.trim()
+            if (trimmed.isEmpty()) {
+                _uiState.value = _uiState.value.copy(tmdbKeyTesting = false, tmdbKeyValid = false)
+                return@launch
+            }
+            val originalKey = tmdbKeyProvider.apiKey
+            tmdbKeyProvider.apiKey = trimmed
+            try {
+                // 用 Fight Club (id=550) 测试 API Key 是否可用
+                tmdbApi.getMovieDetail(550)
+                _uiState.value = _uiState.value.copy(tmdbKeyTesting = false, tmdbKeyValid = true)
+            } catch (e: Exception) {
+                Log.e(TAG, "TMDB key test failed: ${e.message}")
+                _uiState.value = _uiState.value.copy(tmdbKeyTesting = false, tmdbKeyValid = false)
+            } finally {
+                // 恢复 Provider 中原先保存的 Key（如果与当前测试的不同）
+                if (originalKey != trimmed) {
+                    tmdbKeyProvider.apiKey = originalKey
+                }
+            }
+        }
+    }
 }
 
 data class AuthUiState(
@@ -103,5 +133,7 @@ data class AuthUiState(
     val neodbUsername: String? = null,
     val neodbLoading: Boolean = false,
     val neodbError: String? = null,
-    val tmdbApiKey: String = ""
+    val tmdbApiKey: String = "",
+    val tmdbKeyTesting: Boolean = false,
+    val tmdbKeyValid: Boolean? = null,
 )

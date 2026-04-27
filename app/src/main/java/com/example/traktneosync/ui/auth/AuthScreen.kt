@@ -57,7 +57,10 @@ fun AuthScreen(
         // TMDB API Key 配置
         TmdbKeyCard(
             currentKey = uiState.tmdbApiKey,
-            onSave = { viewModel.saveTmdbApiKey(it) }
+            keyTesting = uiState.tmdbKeyTesting,
+            keyValid = uiState.tmdbKeyValid,
+            onSave = { viewModel.saveTmdbApiKey(it) },
+            onTest = { viewModel.testTmdbApiKey(it) }
         )
 
         Spacer(modifier = Modifier.weight(1f))
@@ -86,7 +89,10 @@ fun AuthScreen(
 @Composable
 private fun TmdbKeyCard(
     currentKey: String,
-    onSave: (String) -> Unit
+    keyTesting: Boolean,
+    keyValid: Boolean?,
+    onSave: (String) -> Unit,
+    onTest: (String) -> Unit,
 ) {
     var keyInput by remember { mutableStateOf(currentKey) }
     ElevatedCard(
@@ -107,17 +113,35 @@ private fun TmdbKeyCard(
                     imageVector = Icons.Default.Image,
                     contentDescription = "TMDB",
                     modifier = Modifier.size(40.dp),
-                    tint = if (currentKey.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                    tint = when {
+                        keyValid == true -> MaterialTheme.colorScheme.primary
+                        keyValid == false -> MaterialTheme.colorScheme.error
+                        currentKey.isNotEmpty() -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.outline
+                    }
                 )
                 Column {
                     Text(
                         text = "TMDB",
                         style = MaterialTheme.typography.titleLarge
                     )
+                    val statusText = when {
+                        keyTesting -> "检测中..."
+                        keyValid == true -> "API Key 有效，可以正常使用"
+                        keyValid == false -> "API Key 无效，请检查是否填写正确"
+                        currentKey.isNotEmpty() -> "API Key 已配置"
+                        else -> "未配置 API Key（海报无法加载）"
+                    }
+                    val statusColor = when {
+                        keyValid == true -> MaterialTheme.colorScheme.primary
+                        keyValid == false -> MaterialTheme.colorScheme.error
+                        currentKey.isNotEmpty() -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.error
+                    }
                     Text(
-                        text = if (currentKey.isNotEmpty()) "API Key 已配置" else "未配置 API Key（海报无法加载）",
+                        text = statusText,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = if (currentKey.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                        color = statusColor
                     )
                 }
             }
@@ -135,21 +159,38 @@ private fun TmdbKeyCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                OutlinedButton(
+                    onClick = { onTest(keyInput) },
+                    enabled = !keyTesting,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    if (keyTesting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("检测中")
+                    } else {
+                        Text("检测可用性")
+                    }
+                }
                 Button(
                     onClick = { onSave(keyInput) },
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("保存")
                 }
-                if (currentKey.isNotEmpty()) {
-                    OutlinedButton(
-                        onClick = {
-                            keyInput = ""
-                            onSave("")
-                        }
-                    ) {
-                        Text("清除")
-                    }
+            }
+            if (currentKey.isNotEmpty()) {
+                OutlinedButton(
+                    onClick = {
+                        keyInput = ""
+                        onSave("")
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("清除")
                 }
             }
         }

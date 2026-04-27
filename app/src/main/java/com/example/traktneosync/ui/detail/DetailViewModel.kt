@@ -7,6 +7,7 @@ import com.example.traktneosync.data.AuthRepository
 import com.example.traktneosync.data.neodb.NeoDBApiService
 import com.example.traktneosync.data.neodb.NeoDBPaginatedPosts
 import com.example.traktneosync.data.neodb.NeoDBPost
+import com.example.traktneosync.data.tmdb.TmdbApiService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,6 +20,7 @@ import javax.inject.Inject
 class DetailViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val neoDBApi: NeoDBApiService,
+    private val tmdbApi: TmdbApiService,
 ) : ViewModel() {
 
     companion object {
@@ -34,7 +36,16 @@ class DetailViewModel @Inject constructor(
 
     fun loadNeoDBReviews(title: String, year: Int?, type: String, imdbId: String?) {
         if (_uiState.value.isLoadingReviews) return
-        _uiState.update { it.copy(isLoadingReviews = true, reviews = emptyList(), reviewError = null) }
+        _uiState.update {
+            it.copy(
+                isLoadingReviews = true,
+                reviews = emptyList(),
+                reviewError = null,
+                overview = null,
+                backdropUrls = emptyList(),
+                posterUrls = emptyList(),
+            )
+        }
 
         viewModelScope.launch {
             try {
@@ -72,11 +83,61 @@ class DetailViewModel @Inject constructor(
 
                 itemUuid = bestMatch.uuid
 
+                // 保存 NeoDB 简介作为备选
+                _uiState.update { it.copy(overview = bestMatch.brief.takeIf { b -> b.isNotBlank() }) }
+
                 // 3. 加载第一页评论
                 loadPostsPage(token, bestMatch.uuid, 1, reset = true)
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading NeoDB reviews: ${e.message}", e)
                 _uiState.update { it.copy(isLoadingReviews = false, reviewError = e.message) }
+            }
+        }
+    }
+
+    fun loadTmdbDetails(tmdbId: Long, type: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingDetails = true, detailsError = null) }
+            try {
+                val isMovie = type == "电影" || type == "movie"
+                val tmdbOverview = if (isMovie) {
+                    tmdbApi.getMovieDetail(tmdbId).overview
+                } else {
+                    tmdbApi.getTvDetail(tmdbId).overview
+                }
+
+                val images = if (isMovie) {
+                    tmdbApi.getMovieImages(tmdbId)
+                } else {
+                    tmdbApi.getTvImages(tmdbId)
+                }
+
+                val baseUrl = "https://image.tmdb.org/t/p/w500"
+                val backdrops = images.backdrops
+                    ?.filter { !it.filePath.isNullOrBlank() }
+                    ?.sortedByDescending { it.voteAverage * it.voteCount }
+                    ?.take(6)
+                    ?.map { "$baseUrl${it.filePath}" }
+                    ?: emptyList()
+
+                val posters = images.posters
+                    ?.filter { !it.filePath.isNullOrBlank() }
+                    ?.sortedByDescending { it.voteAverage * it.voteCount }
+                    ?.take(6)
+                    ?.map { "$baseUrl${it.filePath}" }
+                    ?: emptyList()
+
+                _uiState.update { state ->
+                    state.copy(
+                        overview = tmdbOverview?.takeIf { it.isNotBlank() } ?: state.overview,
+                        backdropUrls = backdrops,
+                        posterUrls = posters,
+                        isLoadingDetails = false,
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error loading TMDB details: ${e.message}", e)
+                _uiState.update { it.copy(isLoadingDetails = false, detailsError = e.message) }
             }
         }
     }
@@ -141,6 +202,12 @@ data class DetailUiState(
     val isLoadingMore: Boolean = false,
     val hasMoreReviews: Boolean = false,
     val reviewError: String? = null,
+    // 详情
+    val overview: String? = null,
+    val backdropUrls: List<String> = emptyList(),
+    val posterUrls: List<String> = emptyList(),
+    val isLoadingDetails: Boolean = false,
+    val detailsError: String? = null,
 )
 
 data class ReviewItem(

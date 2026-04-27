@@ -312,11 +312,12 @@ fun TraktNeoSyncApp(
                     it.isNotBlank() && it != "_null_" && it != "null"
                 }
                 val plays = backStackEntry.arguments?.getString("plays")?.toIntOrNull()?.takeIf { it > 0 }
+                val decodedType = if (type == "movie" || type == "sync") "电影" else "剧集"
 
                 DetailScreen(
                     title = java.net.URLDecoder.decode(title, "UTF-8"),
                     year = year,
-                    type = if (type == "movie" || type == "sync") "电影" else "剧集",
+                    type = decodedType,
                     posterUrl = posterUrl,
                     imdbId = imdbId,
                     tmdbId = tmdbId,
