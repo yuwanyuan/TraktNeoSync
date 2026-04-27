@@ -7,7 +7,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -18,99 +17,82 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.navigation.NavController
 import com.example.traktneosync.data.neodb.NeoDBEntry
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(
-    navController: NavController,
     viewModel: SearchViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val focusManager = LocalFocusManager.current
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("搜索并添加") },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        // 搜索框
+        OutlinedTextField(
+            value = uiState.query,
+            onValueChange = { viewModel.onQueryChange(it) },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("搜索电影或剧集") },
+            placeholder = { Text("输入标题...") },
+            leadingIcon = { Icon(Icons.Default.Search, null) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(
+                onSearch = {
+                    focusManager.clearFocus()
+                    viewModel.search()
+                }
+            ),
+            trailingIcon = {
+                if (uiState.query.isNotEmpty()) {
+                    IconButton(onClick = viewModel::search) {
+                        Icon(Icons.Default.Search, null)
                     }
                 }
-            )
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp)
-        ) {
-            // 搜索框
-            OutlinedTextField(
-                value = uiState.query,
-                onValueChange = { viewModel.onQueryChange(it) },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("搜索电影或剧集") },
-                placeholder = { Text("输入标题...") },
-                leadingIcon = { Icon(Icons.Default.Search, null) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(
-                    onSearch = {
-                        focusManager.clearFocus()
-                        viewModel.search()
+            }
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 分类筛选
+        CategoryFilter(
+            selectedCategory = uiState.category,
+            onCategoryChange = { viewModel.onCategoryChange(it) }
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 搜索结果
+        when {
+            uiState.isLoading -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+            uiState.error != null -> {
+                ErrorState(
+                    error = uiState.error!!,
+                    onRetry = { viewModel.search() }
+                )
+            }
+            uiState.results.isNotEmpty() -> {
+                SearchResultsList(
+                    results = uiState.results,
+                    addedUuids = uiState.addedUuids,
+                    onAdd = { entry ->
+                        viewModel.addToShelf(entry, uiState.shelfType)
                     }
-                ),
-                trailingIcon = {
-                    if (uiState.query.isNotEmpty()) {
-                        IconButton(onClick = viewModel::search) {
-                            Icon(Icons.Default.Search, null)
-                        }
-                    }
-                }
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 分类筛选
-            CategoryFilter(
-                selectedCategory = uiState.category,
-                onCategoryChange = { viewModel.onCategoryChange(it) }
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 搜索结果
-            when {
-                uiState.isLoading -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
-                    }
-                }
-                uiState.error != null -> {
-                    ErrorState(
-                        error = uiState.error!!,
-                        onRetry = { viewModel.search() }
-                    )
-                }
-                uiState.results.isNotEmpty() -> {
-                    SearchResultsList(
-                        results = uiState.results,
-                        addedUuids = uiState.addedUuids,
-                        onAdd = { entry ->
-                            viewModel.addToShelf(entry, uiState.shelfType)
-                        }
-                    )
-                }
-                uiState.hasSearched -> {
-                    EmptySearchResults()
-                }
+                )
+            }
+            uiState.hasSearched -> {
+                EmptySearchResults()
             }
         }
     }

@@ -240,7 +240,7 @@ class SyncRepository @Inject constructor(
         }
     }
     
-    private fun findMatchingNeoDBMark(
+    fun findMatchingNeoDBMark(
         traktItem: TraktItem,
         completedMovies: List<NeoDBMark>,
         completedTV: List<NeoDBMark>,

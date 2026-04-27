@@ -120,7 +120,7 @@ fun TraktNeoSyncApp(
                 SyncScreen()
             }
             composable(BottomNavItem.Search.route) {
-                SearchScreen(navController)
+                SearchScreen()
             }
             composable(BottomNavItem.Settings.route) {
                 AuthScreen()

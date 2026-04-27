@@ -17,6 +17,7 @@ import javax.inject.Singleton
 class NeoDBOAuthManager @Inject constructor(
     private val neoDBApi: NeoDBApiService,
     private val authRepository: AuthRepository,
+    private val baseUrlProvider: NeoDBBaseUrlProvider,
     @ApplicationContext private val context: Context
 ) {
     companion object {
@@ -33,7 +34,8 @@ class NeoDBOAuthManager @Inject constructor(
     
     suspend fun registerApp(instance: String = DEFAULT_INSTANCE): Boolean = withContext(Dispatchers.IO) {
         currentInstance = instance
-        
+        baseUrlProvider.baseUrl = "https://$instance/"
+
         // 优先使用 BuildConfig 预设的凭证
         if (BuildConfig.NEODB_CLIENT_ID.isNotEmpty()) {
             currentClientId = BuildConfig.NEODB_CLIENT_ID

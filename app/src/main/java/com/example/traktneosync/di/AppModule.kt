@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.traktneosync.BuildConfig
 import com.example.traktneosync.data.neodb.NeoDBApiService
+import com.example.traktneosync.data.neodb.NeoDBBaseUrlProvider
 import com.example.traktneosync.data.trakt.TraktApiService
 import dagger.Module
 import dagger.Provides
@@ -17,6 +18,7 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import javax.inject.Qualifier
 import javax.inject.Singleton
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
@@ -33,6 +35,7 @@ object AppModule {
     
     @Provides
     @Singleton
+    @TraktHttpClient
     fun provideTraktHttpClient(): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
@@ -53,15 +56,28 @@ object AppModule {
     
     @Provides
     @Singleton
-    fun provideNeoDBHttpClient(): OkHttpClient {
+    @NeoDBHttpClient
+    fun provideNeoDBHttpClient(baseUrlProvider: NeoDBBaseUrlProvider): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
         }
-        
+        val defaultBase = "https://neodb.social/"
+
         return OkHttpClient.Builder()
             .addInterceptor(logging)
             .addInterceptor(Interceptor { chain ->
-                val request = chain.request().newBuilder()
+                val original = chain.request()
+                val url = original.url.toString()
+                // Dynamic base URL rewrite for custom NeoDB instances
+                val newUrl = if (url.startsWith(defaultBase)) {
+                    url.replaceFirst(defaultBase, baseUrlProvider.baseUrl.let {
+                        if (!it.endsWith("/")) "$it/" else it
+                    })
+                } else {
+                    url
+                }
+                val request = original.newBuilder()
+                    .url(newUrl)
                     .addHeader("Content-Type", "application/json")
                     .build()
                 chain.proceed(request)
@@ -71,7 +87,7 @@ object AppModule {
     
     @Provides
     @Singleton
-    fun provideTraktApiService(client: OkHttpClient): TraktApiService {
+    fun provideTraktApiService(@TraktHttpClient client: OkHttpClient): TraktApiService {
         return Retrofit.Builder()
             .baseUrl("https://api.trakt.tv/")
             .client(client)
@@ -83,7 +99,7 @@ object AppModule {
     @Provides
     @Singleton
     @NeoDBRetrofit
-    fun provideNeoDBRetrofit(client: OkHttpClient): Retrofit {
+    fun provideNeoDBRetrofit(@NeoDBHttpClient client: OkHttpClient): Retrofit {
         return Retrofit.Builder()
             .baseUrl("https://neodb.social/")
             .client(client)
@@ -98,5 +114,11 @@ object AppModule {
     }
 }
 
-@javax.inject.Qualifier
+@Qualifier
+annotation class TraktHttpClient
+
+@Qualifier
+annotation class NeoDBHttpClient
+
+@Qualifier
 annotation class NeoDBRetrofit

@@ -89,10 +89,4 @@ class AuthRepository @Inject constructor(
         val clientSecret = prefs[Keys.NEODB_APP_CLIENT_SECRET] ?: return null
         return Pair(clientId, clientSecret)
     }
-    
-    suspend fun isLoggedIn(): Boolean {
-        return dataStore.data.map { 
-            it[Keys.TRAKT_ACCESS_TOKEN] != null && it[Keys.NEODB_ACCESS_TOKEN] != null 
-        }.first()
-    }
 }

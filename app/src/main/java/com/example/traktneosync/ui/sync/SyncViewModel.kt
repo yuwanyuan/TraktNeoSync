@@ -74,8 +74,16 @@ class SyncViewModel @Inject constructor(
                 // 已观看电影
                 watchedMovies.forEach { item ->
                     item.movie?.let { movie ->
+                        val traktItem = SyncRepository.TraktItem(
+                            title = movie.title,
+                            year = movie.year,
+                            type = "movie",
+                            ids = movie.ids,
+                            watchedAt = item.lastWatchedAt,
+                            plays = item.plays
+                        )
                         val neodbMark = findMatchingMark(
-                            movie.title, movie.year,
+                            traktItem,
                             neodbCompletedMovies, neodbCompletedTV, neodbWishlistMovies, neodbWishlistTV
                         )
                         syncItems.add(
@@ -85,14 +93,7 @@ class SyncViewModel @Inject constructor(
                                 type = "电影",
                                 status = "已观看",
                                 isSynced = neodbMark != null,
-                                traktItem = SyncRepository.TraktItem(
-                                    title = movie.title,
-                                    year = movie.year,
-                                    type = "movie",
-                                    ids = movie.ids,
-                                    watchedAt = item.lastWatchedAt,
-                                    plays = item.plays
-                                ),
+                                traktItem = traktItem,
                                 neoDBMark = neodbMark
                             )
                         )
@@ -102,8 +103,16 @@ class SyncViewModel @Inject constructor(
                 // 已观看剧集
                 watchedShows.forEach { item ->
                     item.show?.let { show ->
+                        val traktItem = SyncRepository.TraktItem(
+                            title = show.title,
+                            year = show.year,
+                            type = "show",
+                            ids = show.ids,
+                            watchedAt = item.lastWatchedAt,
+                            plays = item.plays
+                        )
                         val neodbMark = findMatchingMark(
-                            show.title, show.year,
+                            traktItem,
                             neodbCompletedMovies, neodbCompletedTV, neodbWishlistMovies, neodbWishlistTV
                         )
                         syncItems.add(
@@ -113,14 +122,7 @@ class SyncViewModel @Inject constructor(
                                 type = "剧集",
                                 status = "已观看 (${item.plays} 集)",
                                 isSynced = neodbMark != null,
-                                traktItem = SyncRepository.TraktItem(
-                                    title = show.title,
-                                    year = show.year,
-                                    type = "show",
-                                    ids = show.ids,
-                                    watchedAt = item.lastWatchedAt,
-                                    plays = item.plays
-                                ),
+                                traktItem = traktItem,
                                 neoDBMark = neodbMark
                             )
                         )
@@ -130,8 +132,14 @@ class SyncViewModel @Inject constructor(
                 // 待看电影
                 movieWatchlist.forEach { item ->
                     item.movie?.let { movie ->
+                        val traktItem = SyncRepository.TraktItem(
+                            title = movie.title,
+                            year = movie.year,
+                            type = "movie",
+                            ids = movie.ids
+                        )
                         val neodbMark = findMatchingMark(
-                            movie.title, movie.year,
+                            traktItem,
                             neodbCompletedMovies, neodbCompletedTV, neodbWishlistMovies, neodbWishlistTV
                         )
                         syncItems.add(
@@ -141,12 +149,7 @@ class SyncViewModel @Inject constructor(
                                 type = "电影",
                                 status = "待看",
                                 isSynced = neodbMark != null,
-                                traktItem = SyncRepository.TraktItem(
-                                    title = movie.title,
-                                    year = movie.year,
-                                    type = "movie",
-                                    ids = movie.ids
-                                ),
+                                traktItem = traktItem,
                                 neoDBMark = neodbMark
                             )
                         )
@@ -156,8 +159,14 @@ class SyncViewModel @Inject constructor(
                 // 待看剧集
                 showWatchlist.forEach { item ->
                     item.show?.let { show ->
+                        val traktItem = SyncRepository.TraktItem(
+                            title = show.title,
+                            year = show.year,
+                            type = "show",
+                            ids = show.ids
+                        )
                         val neodbMark = findMatchingMark(
-                            show.title, show.year,
+                            traktItem,
                             neodbCompletedMovies, neodbCompletedTV, neodbWishlistMovies, neodbWishlistTV
                         )
                         syncItems.add(
@@ -167,12 +176,7 @@ class SyncViewModel @Inject constructor(
                                 type = "剧集",
                                 status = "待看",
                                 isSynced = neodbMark != null,
-                                traktItem = SyncRepository.TraktItem(
-                                    title = show.title,
-                                    year = show.year,
-                                    type = "show",
-                                    ids = show.ids
-                                ),
+                                traktItem = traktItem,
                                 neoDBMark = neodbMark
                             )
                         )
@@ -281,17 +285,15 @@ class SyncViewModel @Inject constructor(
     }
 
     private fun findMatchingMark(
-        title: String, year: Int?,
+        traktItem: SyncRepository.TraktItem,
         completedMovies: List<NeoDBMark>,
         completedTV: List<NeoDBMark>,
         wishlistMovies: List<NeoDBMark>,
         wishlistTV: List<NeoDBMark>
     ): NeoDBMark? {
-        val allMarks = completedMovies + completedTV + wishlistMovies + wishlistTV
-        return allMarks.find { mark ->
-            mark.item.displayTitle.equals(title, ignoreCase = true) ||
-                    mark.item.displayTitle.contains(title, ignoreCase = true)
-        }
+        return syncRepository.findMatchingNeoDBMark(
+            traktItem, completedMovies, completedTV, wishlistMovies, wishlistTV
+        )
     }
 }
 
