@@ -245,8 +245,10 @@ fun TraktNeoSyncApp(
             composable(BottomNavItem.Movies.route) {
                 MoviesScreen(
                     onNavigateToDetail = { movie ->
+                        val encodedTitle = java.net.URLEncoder.encode(movie.title, "UTF-8")
+                        val encodedPoster = java.net.URLEncoder.encode(movie.posterUrl ?: "", "UTF-8")
                         navController.navigate(
-                            "detail/movie/${movie.title}/${movie.year ?: 0}/${movie.imdbId ?: ""}/${movie.tmdbId ?: 0}/${movie.posterUrl ?: ""}/${movie.plays}"
+                            "detail/movie/$encodedTitle/${movie.year ?: 0}/${movie.imdbId ?: ""}/${movie.tmdbId ?: 0}/$encodedPoster/${movie.plays}"
                         )
                     }
                 )
@@ -254,8 +256,10 @@ fun TraktNeoSyncApp(
             composable(BottomNavItem.Shows.route) {
                 ShowsScreen(
                     onNavigateToDetail = { show ->
+                        val encodedTitle = java.net.URLEncoder.encode(show.title, "UTF-8")
+                        val encodedPoster = java.net.URLEncoder.encode(show.posterUrl ?: "", "UTF-8")
                         navController.navigate(
-                            "detail/show/${show.title}/${show.year ?: 0}/${show.imdbId ?: ""}/${show.tmdbId ?: 0}/${show.posterUrl ?: ""}/${show.plays}"
+                            "detail/show/$encodedTitle/${show.year ?: 0}/${show.imdbId ?: ""}/${show.tmdbId ?: 0}/$encodedPoster/${show.plays}"
                         )
                     }
                 )
@@ -263,9 +267,11 @@ fun TraktNeoSyncApp(
             composable(BottomNavItem.Sync.route) {
                 SyncScreen(
                     onNavigateToDetail = { item ->
+                        val encodedTitle = java.net.URLEncoder.encode(item.title, "UTF-8")
                         val posterUrl = item.neoDBMark?.item?.coverImageUrl ?: ""
+                        val encodedPoster = java.net.URLEncoder.encode(posterUrl, "UTF-8")
                         navController.navigate(
-                            "detail/sync/${item.title}/${item.year ?: 0}/0/0/$posterUrl/0"
+                            "detail/sync/$encodedTitle/${item.year ?: 0}/0/0/$encodedPoster/0"
                         )
                     }
                 )

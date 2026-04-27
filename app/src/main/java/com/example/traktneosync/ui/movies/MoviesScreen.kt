@@ -170,12 +170,3 @@ private fun EmptyState() {
         )
     }
 }
-
-data class MovieItem(
-    val title: String,
-    val year: Int?,
-    val plays: Int = 0,
-    val imdbId: String? = null,
-    val tmdbId: Long? = null,
-    val posterUrl: String? = null
-)

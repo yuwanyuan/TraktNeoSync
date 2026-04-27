@@ -110,6 +110,39 @@ data class NeoDBPublicInstance(
     @SerializedName("name") val name: String? = null
 )
 
+// ========== 评论 ==========
+
+data class NeoDBPaginatedPosts(
+    @SerializedName("pages") val pages: Int = 0,
+    @SerializedName("count") val count: Int = 0,
+    @SerializedName("data") val data: List<NeoDBPost> = emptyList(),
+)
+
+data class NeoDBPost(
+    @SerializedName("id") val id: String? = null,
+    @SerializedName("created_at") val createdAt: String? = null,
+    @SerializedName("account") val account: NeoDBAccount? = null,
+    @SerializedName("content") val content: String? = null,
+    @SerializedName("ext_neodb") val extNeoDB: NeoDBExtNeoDB? = null,
+)
+
+data class NeoDBAccount(
+    @SerializedName("id") val id: String? = null,
+    @SerializedName("username") val username: String? = null,
+    @SerializedName("display_name") val displayName: String? = null,
+    @SerializedName("avatar") val avatar: String? = null,
+)
+
+data class NeoDBExtNeoDB(
+    @SerializedName("related_with") val relatedWith: List<NeoDBRelatedItem>? = null,
+)
+
+data class NeoDBRelatedItem(
+    @SerializedName("type") val type: String? = null,
+    @SerializedName("content") val content: String? = null,
+    @SerializedName("value") val value: Int? = null,
+)
+
 // ========== 用户 ==========
 
 data class NeoDBUser(

@@ -89,8 +89,18 @@ interface NeoDBApiService {
         @Path("category") category: String
     ): List<NeoDBEntry>
     
+    // ========== 评论 ==========
+
+    @GET("api/item/{uuid}/posts/")
+    suspend fun getItemPosts(
+        @Header("Authorization") token: String,
+        @Path("uuid") uuid: String,
+        @Query("type") type: String = "comment",
+        @Query("page") page: Int = 1,
+    ): NeoDBPaginatedPosts
+
     // ========== 实例列表 ==========
-    
+
     @GET("https://api.neodb.app/servers")
     suspend fun getPublicInstances(): List<NeoDBPublicInstance>
 }
