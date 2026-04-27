@@ -34,13 +34,20 @@ android {
 
     signingConfigs {
         create("release") {
-            keyAlias = System.getenv("SIGNING_KEY_ALIAS") 
+            keyAlias = System.getenv("SIGNING_KEY_ALIAS")
                 ?: localProps.getProperty("SIGNING_KEY_ALIAS", "traktneosync")
-            keyPassword = System.getenv("SIGNING_KEY_PASSWORD") 
+            keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
                 ?: localProps.getProperty("SIGNING_KEY_PASSWORD", "")
             storeFile = file(System.getenv("KEYSTORE_PATH") ?: "traktneosync.keystore")
-            storePassword = System.getenv("SIGNING_STORE_PASSWORD") 
+            storePassword = System.getenv("SIGNING_STORE_PASSWORD")
                 ?: localProps.getProperty("SIGNING_STORE_PASSWORD", "")
+        }
+        getByName("debug") {
+            // debug 使用固定签名，确保每次构建的 APK 可以覆盖安装
+            keyAlias = "traktneosync"
+            keyPassword = "traktneo"
+            storeFile = file("debug.keystore")
+            storePassword = "traktneo"
         }
     }
 
@@ -52,6 +59,9 @@ android {
                 "proguard-rules.pro"
             )
             signingConfig = signingConfigs.getByName("release")
+        }
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     
