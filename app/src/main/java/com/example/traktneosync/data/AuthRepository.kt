@@ -4,6 +4,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.example.traktneosync.data.tmdb.TmdbApiKeyProvider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -12,7 +13,8 @@ import javax.inject.Singleton
 
 @Singleton
 class AuthRepository @Inject constructor(
-    private val dataStore: DataStore<Preferences>
+    private val dataStore: DataStore<Preferences>,
+    private val tmdbKeyProvider: TmdbApiKeyProvider
 ) {
     private object Keys {
         val TRAKT_ACCESS_TOKEN = stringPreferencesKey("trakt_access_token")
@@ -26,6 +28,9 @@ class AuthRepository @Inject constructor(
         // NeoDB 动态注册的应用凭证
         val NEODB_APP_CLIENT_ID = stringPreferencesKey("neodb_app_client_id")
         val NEODB_APP_CLIENT_SECRET = stringPreferencesKey("neodb_app_client_secret")
+
+        // TMDB API Key
+        val TMDB_API_KEY = stringPreferencesKey("tmdb_api_key")
     }
     
     // ========== Trakt Auth ==========
@@ -88,5 +93,26 @@ class AuthRepository @Inject constructor(
         val clientId = prefs[Keys.NEODB_APP_CLIENT_ID] ?: return null
         val clientSecret = prefs[Keys.NEODB_APP_CLIENT_SECRET] ?: return null
         return Pair(clientId, clientSecret)
+    }
+
+    // ========== TMDB API Key ==========
+
+    val tmdbApiKey: Flow<String?> = dataStore.data.map { it[Keys.TMDB_API_KEY] }
+
+    suspend fun initTmdbKey() {
+        val key = dataStore.data.first()[Keys.TMDB_API_KEY] ?: ""
+        tmdbKeyProvider.apiKey = key
+    }
+
+    suspend fun setTmdbApiKey(key: String) {
+        val trimmed = key.trim()
+        dataStore.edit { prefs ->
+            if (trimmed.isBlank()) {
+                prefs.remove(Keys.TMDB_API_KEY)
+            } else {
+                prefs[Keys.TMDB_API_KEY] = trimmed
+            }
+        }
+        tmdbKeyProvider.apiKey = trimmed
     }
 }

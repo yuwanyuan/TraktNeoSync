@@ -33,13 +33,15 @@ class AuthViewModel @Inject constructor(
                 authRepository.traktAccessToken,
                 authRepository.traktUser,
                 authRepository.neodbAccessToken,
-                authRepository.neodbUser
-            ) { traktToken, traktUser, neodbToken, neodbUser ->
+                authRepository.neodbUser,
+                authRepository.tmdbApiKey
+            ) { traktToken, traktUser, neodbToken, neodbUser, tmdbKey ->
                 AuthUiState(
                     traktConnected = traktToken != null,
                     traktUsername = traktUser,
                     neodbConnected = neodbToken != null,
-                    neodbUsername = neodbUser
+                    neodbUsername = neodbUser,
+                    tmdbApiKey = tmdbKey ?: ""
                 )
             }.collect { state ->
                 _uiState.value = state
@@ -86,6 +88,12 @@ class AuthViewModel @Inject constructor(
     fun clearNeoDBError() {
         _uiState.value = _uiState.value.copy(neodbError = null)
     }
+
+    fun saveTmdbApiKey(key: String) {
+        viewModelScope.launch {
+            authRepository.setTmdbApiKey(key)
+        }
+    }
 }
 
 data class AuthUiState(
@@ -94,5 +102,6 @@ data class AuthUiState(
     val neodbConnected: Boolean = false,
     val neodbUsername: String? = null,
     val neodbLoading: Boolean = false,
-    val neodbError: String? = null
+    val neodbError: String? = null,
+    val tmdbApiKey: String = ""
 )

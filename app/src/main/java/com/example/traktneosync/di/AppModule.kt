@@ -7,6 +7,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.example.traktneosync.BuildConfig
 import com.example.traktneosync.data.neodb.NeoDBApiService
 import com.example.traktneosync.data.neodb.NeoDBBaseUrlProvider
+import com.example.traktneosync.data.tmdb.TmdbApiKeyProvider
 import com.example.traktneosync.data.tmdb.TmdbApiService
 import com.example.traktneosync.data.trakt.TraktApiService
 import dagger.Module
@@ -116,16 +117,17 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideTmdbHttpClient(): OkHttpClient {
+    fun provideTmdbHttpClient(keyProvider: TmdbApiKeyProvider): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BASIC
         }
         return OkHttpClient.Builder()
             .addInterceptor(logging)
             .addInterceptor(Interceptor { chain ->
+                val apiKey = keyProvider.apiKey.takeIf { it.isNotEmpty() } ?: ""
                 val original = chain.request()
                 val url = original.url.newBuilder()
-                    .addQueryParameter("api_key", BuildConfig.TMDB_API_KEY)
+                    .addQueryParameter("api_key", apiKey)
                     .addQueryParameter("language", "zh-CN")
                     .build()
                 val request = original.newBuilder().url(url).build()

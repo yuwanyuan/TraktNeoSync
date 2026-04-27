@@ -3,10 +3,14 @@ package com.example.traktneosync.ui.auth
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -50,6 +54,12 @@ fun AuthScreen(
             onClearError = { viewModel.clearNeoDBError() }
         )
 
+        // TMDB API Key 配置
+        TmdbKeyCard(
+            currentKey = uiState.tmdbApiKey,
+            onSave = { viewModel.saveTmdbApiKey(it) }
+        )
+
         Spacer(modifier = Modifier.weight(1f))
 
         // 使用说明
@@ -68,6 +78,79 @@ fun AuthScreen(
                             "3. 查看未同步的条目并一键添加",
                     style = MaterialTheme.typography.bodyMedium
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TmdbKeyCard(
+    currentKey: String,
+    onSave: (String) -> Unit
+) {
+    var keyInput by remember { mutableStateOf(currentKey) }
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Image,
+                    contentDescription = "TMDB",
+                    modifier = Modifier.size(40.dp),
+                    tint = if (currentKey.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                )
+                Column {
+                    Text(
+                        text = "TMDB",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    Text(
+                        text = if (currentKey.isNotEmpty()) "API Key 已配置" else "未配置 API Key（海报无法加载）",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (currentKey.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+
+            OutlinedTextField(
+                value = keyInput,
+                onValueChange = { keyInput = it },
+                label = { Text("TMDB API Key") },
+                placeholder = { Text("输入你的 TMDB API Key...") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = { onSave(keyInput) },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("保存")
+                }
+                if (currentKey.isNotEmpty()) {
+                    OutlinedButton(
+                        onClick = {
+                            keyInput = ""
+                            onSave("")
+                        }
+                    ) {
+                        Text("清除")
+                    }
+                }
             }
         }
     }
