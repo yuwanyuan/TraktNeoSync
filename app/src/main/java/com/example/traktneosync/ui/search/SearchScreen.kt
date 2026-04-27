@@ -3,6 +3,7 @@ package com.example.traktneosync.ui.search
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -13,11 +14,14 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
 import com.example.traktneosync.data.neodb.NeoDBEntry
 
 @Composable
@@ -150,10 +154,38 @@ private fun SearchResultCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // 封面图片
+            if (entry.coverImageUrl != null) {
+                AsyncImage(
+                    model = entry.coverImageUrl,
+                    contentDescription = entry.displayTitle,
+                    modifier = Modifier
+                        .size(width = 60.dp, height = 80.dp)
+                        .clip(RoundedCornerShape(8.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                // 无封面时的占位
+                Box(
+                    modifier = Modifier
+                        .size(width = 60.dp, height = 80.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = entry.category.take(1).uppercase(),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // 文字信息
             Column(
                 modifier = Modifier.weight(1f)
             ) {
@@ -170,7 +202,7 @@ private fun SearchResultCard(
                 )
                 if (entry.brief.isNotEmpty()) {
                     Text(
-                        text = entry.brief.take(100),
+                        text = entry.brief.take(80),
                         style = MaterialTheme.typography.bodySmall,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
@@ -179,6 +211,7 @@ private fun SearchResultCard(
                 }
             }
 
+            // 添加按钮
             if (isAdded) {
                 Icon(
                     imageVector = Icons.Default.Add,
@@ -187,9 +220,14 @@ private fun SearchResultCard(
                 )
             } else {
                 FilledIconButton(
-                    onClick = onAdd
+                    onClick = onAdd,
+                    modifier = Modifier.size(40.dp)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "添加到书架")
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = "添加到书架",
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
         }
