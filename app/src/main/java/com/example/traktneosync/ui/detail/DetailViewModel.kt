@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.Duration
+import java.time.Instant
 import javax.inject.Inject
 
 @HiltViewModel
@@ -215,7 +217,7 @@ class DetailViewModel @Inject constructor(
             val username = account.displayName?.takeIf { it.isNotBlank() }
                 ?: account.username?.takeIf { it.isNotBlank() }
                 ?: return@mapNotNull null
-            val content = post.extNeoDB?.relatedWith
+            val rawContent = post.extNeoDB?.relatedWith
                 ?.find { it.type == "Comment" || it.type == "comment" }
                 ?.content
                 ?: post.content
@@ -226,9 +228,10 @@ class DetailViewModel @Inject constructor(
             ReviewItem(
                 username = username,
                 avatarUrl = account.avatar?.takeIf { it.isNotBlank() },
-                content = content,
+                content = sanitizeContent(rawContent),
                 rating = rating,
                 date = post.createdAt ?: "",
+                relativeDate = formatPostDate(post.createdAt),
             )
         }
 
@@ -243,6 +246,36 @@ class DetailViewModel @Inject constructor(
         }
         currentPostPage = page
         totalPostPages = postsResult.pages
+    }
+
+    private fun sanitizeContent(raw: String?): String {
+        if (raw.isNullOrBlank()) return ""
+        return raw
+            .replace(Regex("<br\\s*/?>"), "\n")
+            .replace(Regex("<p>"), "")
+            .replace(Regex("</p>"), "\n\n")
+            .replace(Regex("<[^>]+>"), "")
+            .trim()
+    }
+
+    private fun formatPostDate(isoString: String?): String {
+        if (isoString.isNullOrBlank()) return ""
+        return try {
+            val instant = Instant.parse(isoString)
+            val now = Instant.now()
+            val duration = Duration.between(instant, now)
+            when {
+                duration.toDays() >= 365 -> "${duration.toDays() / 365}年前"
+                duration.toDays() >= 30 -> "${duration.toDays() / 30}个月前"
+                duration.toDays() >= 7 -> "${duration.toDays() / 7}周前"
+                duration.toDays() >= 1 -> "${duration.toDays()}天前"
+                duration.toHours() >= 1 -> "${duration.toHours()}小时前"
+                duration.toMinutes() >= 1 -> "${duration.toMinutes()}分钟前"
+                else -> "刚刚"
+            }
+        } catch (e: Exception) {
+            isoString
+        }
     }
 }
 
@@ -268,4 +301,5 @@ data class ReviewItem(
     val content: String,
     val rating: Int?,
     val date: String,
+    val relativeDate: String = "",
 )

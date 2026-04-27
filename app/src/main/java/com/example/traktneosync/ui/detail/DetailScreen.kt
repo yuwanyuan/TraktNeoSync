@@ -288,7 +288,7 @@ fun DetailScreen(
             item {
                 Text(
                     text = "NeoDB 评论",
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -367,87 +367,104 @@ fun DetailScreen(
 
 @Composable
 private fun ReviewCard(review: ReviewItem) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // 用户信息和评分
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // 用户信息和评分
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (review.avatarUrl != null) {
-                        AsyncImage(
-                            model = review.avatarUrl,
-                            contentDescription = review.username,
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(18.dp)),
-                            contentScale = ContentScale.Crop
+                if (review.avatarUrl != null) {
+                    AsyncImage(
+                        model = review.avatarUrl,
+                        contentDescription = review.username,
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(RoundedCornerShape(16.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = review.username.take(1).uppercase(),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            style = MaterialTheme.typography.labelMedium
                         )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(18.dp))
-                                .background(MaterialTheme.colorScheme.primaryContainer),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = review.username.take(1).uppercase(),
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                style = MaterialTheme.typography.labelLarge
-                            )
-                        }
                     }
+                }
+                Column {
                     Text(
                         text = review.username,
                         style = MaterialTheme.typography.titleSmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                }
-                if (review.rating != null) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Star,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(2.dp))
+                    if (review.relativeDate.isNotBlank()) {
                         Text(
-                            text = "${review.rating}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary
+                            text = review.relativeDate,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
-
-            // 评论内容
-            if (review.content.isNotBlank()) {
-                Text(
-                    text = review.content,
-                    style = MaterialTheme.typography.bodyMedium
+            if (review.rating != null) {
+                AssistChip(
+                    onClick = { },
+                    label = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text(
+                                text = "${review.rating}",
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
+                    }
                 )
             }
+        }
 
-            // 日期
+        // 评论内容
+        if (review.content.isNotBlank()) {
             Text(
-                text = review.date,
+                text = review.content,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(start = 40.dp)
+            )
+        } else if (review.rating != null) {
+            Text(
+                text = "（仅评分，无评论内容）",
                 style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.alpha(0.6f)
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 40.dp)
             )
         }
+
+        Divider(
+            modifier = Modifier.padding(top = 4.dp),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+        )
     }
 }
 
