@@ -3,6 +3,7 @@ package com.example.traktneosync.data.tmdb
 import com.google.gson.annotations.SerializedName
 import retrofit2.http.GET
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 interface TmdbApiService {
 
@@ -35,6 +36,28 @@ interface TmdbApiService {
     suspend fun getTvAlternativeTitles(
         @Path("series_id") seriesId: Long
     ): TmdbAlternativeTitles
+
+    // 搜索电影/剧集（用于获取 IMDb 评分）
+    @GET("search/movie")
+    suspend fun searchMovie(
+        @Query("query") query: String,
+        @Query("year") year: Int? = null
+    ): TmdbSearchResponse
+
+    @GET("search/tv")
+    suspend fun searchTv(
+        @Query("query") query: String
+    ): TmdbSearchResponse
+
+    @GET("movie/{movie_id}/external_ids")
+    suspend fun getMovieExternalIds(
+        @Path("movie_id") movieId: Long
+    ): TmdbExternalIds
+
+    @GET("tv/{series_id}/external_ids")
+    suspend fun getTvExternalIds(
+        @Path("series_id") seriesId: Long
+    ): TmdbExternalIds
 }
 
 data class TmdbMovieDetail(
@@ -77,4 +100,27 @@ data class TmdbAltTitle(
     @SerializedName("iso_3166_1") val iso31661: String? = null,
     @SerializedName("title") val title: String? = null,
     @SerializedName("type") val type: String? = null,
+)
+
+data class TmdbSearchResponse(
+    @SerializedName("page") val page: Int = 0,
+    @SerializedName("results") val results: List<TmdbSearchResult> = emptyList(),
+    @SerializedName("total_pages") val totalPages: Int = 0,
+    @SerializedName("total_results") val totalResults: Int = 0,
+)
+
+data class TmdbSearchResult(
+    @SerializedName("id") val id: Long = 0,
+    @SerializedName("title") val title: String? = null,
+    @SerializedName("name") val name: String? = null,
+    @SerializedName("poster_path") val posterPath: String? = null,
+    @SerializedName("release_date") val releaseDate: String? = null,
+    @SerializedName("first_air_date") val firstAirDate: String? = null,
+    @SerializedName("vote_average") val voteAverage: Float? = null,
+    @SerializedName("vote_count") val voteCount: Int? = null,
+)
+
+data class TmdbExternalIds(
+    @SerializedName("imdb_id") val imdbId: String? = null,
+    @SerializedName("tmdb_id") val tmdbId: Long? = null,
 )

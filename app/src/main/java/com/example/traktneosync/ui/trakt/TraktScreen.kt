@@ -15,8 +15,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,7 +34,8 @@ fun TraktScreen(
     onNavigateToMovieDetail: (MovieItem) -> Unit = {},
     onNavigateToShowDetail: (ShowItem) -> Unit = {}
 ) {
-    var selectedType by remember { mutableStateOf("movie") } // "movie" or "show"
+    // 使用 rememberSaveable 替代 remember，确保状态在重组和页面切换后保留
+    var selectedType by rememberSaveable { mutableStateOf("movie") } // "movie" or "show"
 
     Column(
         modifier = Modifier
@@ -46,34 +49,55 @@ fun TraktScreen(
                 .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Button(
-                onClick = { selectedType = "movie" },
-                modifier = Modifier.weight(1f),
-                enabled = selectedType != "movie"
-            ) {
-                Text("电影")
+            // 电影按钮
+            if (selectedType == "movie") {
+                Button(
+                    onClick = { },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("电影")
+                }
+            } else {
+                OutlinedButton(
+                    onClick = { selectedType = "movie" },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("电影")
+                }
             }
-            Button(
-                onClick = { selectedType = "show" },
-                modifier = Modifier.weight(1f),
-                enabled = selectedType != "show"
-            ) {
-                Text("剧集")
+
+            // 剧集按钮
+            if (selectedType == "show") {
+                Button(
+                    onClick = { },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("剧集")
+                }
+            } else {
+                OutlinedButton(
+                    onClick = { selectedType = "show" },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("剧集")
+                }
             }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // 内容区域
-        when (selectedType) {
-            "movie" -> MoviesScreen(
-                snackbarHostState = snackbarHostState,
-                onNavigateToDetail = onNavigateToMovieDetail
-            )
-            else -> ShowsScreen(
-                snackbarHostState = snackbarHostState,
-                onNavigateToDetail = onNavigateToShowDetail
-            )
+        // 内容区域 - 使用 key 强制重组
+        key(selectedType) {
+            when (selectedType) {
+                "movie" -> MoviesScreen(
+                    snackbarHostState = snackbarHostState,
+                    onNavigateToDetail = onNavigateToMovieDetail
+                )
+                else -> ShowsScreen(
+                    snackbarHostState = snackbarHostState,
+                    onNavigateToDetail = onNavigateToShowDetail
+                )
+            }
         }
     }
 }

@@ -17,7 +17,8 @@ import javax.inject.Inject
 @HiltViewModel
 class SearchViewModel @Inject constructor(
     private val neoDBApi: NeoDBApiService,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val tmdbApi: com.example.traktneosync.data.tmdb.TmdbApiService
 ) : ViewModel() {
 
     companion object {
@@ -75,9 +76,18 @@ class SearchViewModel @Inject constructor(
                     page = 1
                 )
 
+                // 从 TMDB 获取评分和 IMDb ID
+                val resultsWithTmdb = result.data.map { entry ->
+                    if (entry.category == "movie" || entry.category == "tv") {
+                        fetchTmdbInfo(entry)
+                    } else {
+                        entry
+                    }
+                }
+
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    results = result.data,
+                    results = resultsWithTmdb,
                     error = null
                 )
 
@@ -204,6 +214,39 @@ class SearchViewModel @Inject constructor(
 
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
+    }
+
+    // 从 TMDB 获取评分和 IMDb ID
+    private suspend fun fetchTmdbInfo(entry: NeoDBEntry): NeoDBEntry {
+        return try {
+            val searchResult = if (entry.category == "movie") {
+                tmdbApi.searchMovie(query = entry.displayTitle)
+            } else {
+                tmdbApi.searchTv(query = entry.displayTitle)
+            }
+
+            val firstResult = searchResult.results.firstOrNull()
+            if (firstResult != null) {
+                val tmdbId = firstResult.id
+                // 获取 external_ids 以取得 IMDb ID
+                val externalIds = if (entry.category == "movie") {
+                    tmdbApi.getMovieExternalIds(tmdbId)
+                } else {
+                    tmdbApi.getTvExternalIds(tmdbId)
+                }
+
+                entry.copy(
+                    tmdbRating = firstResult.voteAverage,
+                    imdbId = externalIds.imdbId,
+                    tmdbId = tmdbId
+                )
+            } else {
+                entry
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "TMDB fetch failed for ${entry.displayTitle}: ${e.message}")
+            entry
+        }
     }
 }
 

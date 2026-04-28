@@ -51,7 +51,11 @@ data class NeoDBEntry(
     @SerializedName("brief") val brief: String = "",
     @SerializedName("cover_image_url") val coverImageUrl: String? = null,
     @SerializedName("rating") val rating: Float? = null,
-    @SerializedName("rating_count") val ratingCount: Int = 0
+    @SerializedName("rating_count") val ratingCount: Int = 0,
+    // 本地扩展字段（从 TMDB 获取）
+    val tmdbRating: Float? = null,
+    val imdbId: String? = null,
+    val tmdbId: Long? = null,
 )
 
 data class NeoDBExternalResource(

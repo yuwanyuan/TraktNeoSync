@@ -231,11 +231,32 @@ private fun SearchResultCard(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
+                // 评分信息：优先显示 TMDB 评分，其次 NeoDB 评分
+                val ratingText = when {
+                    entry.tmdbRating != null && entry.tmdbRating > 0 -> "TMDB ★ ${String.format("%.1f", entry.tmdbRating)}"
+                    entry.rating != null && entry.rating > 0 -> "NeoDB ★ ${entry.rating}"
+                    else -> entry.category
+                }
                 Text(
-                    text = "${entry.category} ${if (entry.rating != null) "★ ${entry.rating}" else ""}",
+                    text = ratingText,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                // 显示 IMDb ID 和 TMDB ID
+                if (entry.imdbId != null || entry.tmdbId != null) {
+                    val idText = buildString {
+                        if (entry.imdbId != null) append("IMDb: ${entry.imdbId}")
+                        if (entry.imdbId != null && entry.tmdbId != null) append(" | ")
+                        if (entry.tmdbId != null) append("TMDB: ${entry.tmdbId}")
+                    }
+                    Text(
+                        text = idText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
                 if (entry.brief.isNotEmpty()) {
                     Text(
                         text = entry.brief.take(80),
