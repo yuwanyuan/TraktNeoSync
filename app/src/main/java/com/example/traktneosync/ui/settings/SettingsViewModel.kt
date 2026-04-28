@@ -119,12 +119,17 @@ class SettingsViewModel @Inject constructor(
     fun connectNeoDB() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(neodbLoading = true, neodbError = null)
-            val registered = neodbOAuthManager.registerApp()
+            val registered = try {
+                neodbOAuthManager.registerApp()
+            } catch (e: Exception) {
+                AppLogger.error(TAG, "NeoDB注册异常", e)
+                false
+            }
             if (!registered) {
-                AppLogger.error(TAG, "注册NeoDB应用失败")
+                AppLogger.error(TAG, "注册NeoDB应用失败，无法打开授权页面")
                 _uiState.value = _uiState.value.copy(
                     neodbLoading = false,
-                    neodbError = "无法注册 NeoDB 应用，请检查网络连接"
+                    neodbError = "无法连接 NeoDB 服务器，请检查网络或稍后重试"
                 )
                 return@launch
             }

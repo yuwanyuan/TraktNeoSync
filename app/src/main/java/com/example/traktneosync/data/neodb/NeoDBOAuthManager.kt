@@ -58,17 +58,38 @@ class NeoDBOAuthManager @Inject constructor(
                 clientName = "TraktNeoSync",
                 redirectUris = REDIRECT_URI
             )
-            
+
+            AppLogger.info(TAG, "开始注册NeoDB应用", mapOf("instance" to instance, "url" to "https://$instance/api/v1/apps"))
             val response = neoDBApi.registerApp(request)
             currentClientId = response.clientId
             currentClientSecret = response.clientSecret
-            
+
+            if (currentClientId.isEmpty() || currentClientSecret.isEmpty()) {
+                AppLogger.error(TAG, "NeoDB注册返回空凭证", null, mapOf("clientIdEmpty" to currentClientId.isEmpty(), "clientSecretEmpty" to currentClientSecret.isEmpty()))
+                return@withContext false
+            }
+
             // 持久化保存
             authRepository.saveNeoDBAppCredentials(currentClientId, currentClientSecret)
-            
+            AppLogger.info(TAG, "NeoDB应用注册成功", mapOf("instance" to instance, "clientIdPrefix" to currentClientId.take(8)))
+
             true
+        } catch (e: retrofit2.HttpException) {
+            val errorBody = e.response()?.errorBody()?.string() ?: ""
+            AppLogger.error(TAG, "注册NeoDB应用HTTP失败", e, mapOf(
+                "instance" to instance,
+                "code" to e.code(),
+                "errorBody" to errorBody.take(200)
+            ))
+            false
+        } catch (e: java.net.UnknownHostException) {
+            AppLogger.error(TAG, "NeoDB实例无法解析", e, mapOf("instance" to instance))
+            false
+        } catch (e: java.net.SocketTimeoutException) {
+            AppLogger.error(TAG, "NeoDB连接超时", e, mapOf("instance" to instance))
+            false
         } catch (e: Exception) {
-            AppLogger.error(TAG, "注册NeoDB应用失败", e, mapOf("instance" to instance))
+            AppLogger.error(TAG, "注册NeoDB应用失败", e, mapOf("instance" to instance, "type" to e.javaClass.simpleName))
             false
         }
     }
@@ -121,10 +142,13 @@ class NeoDBOAuthManager @Inject constructor(
                 clientSecret = currentClientSecret,
                 code = code
             )
+            AppLogger.debug(TAG, "请求NeoDB Token", mapOf("instance" to currentInstance, "clientIdPrefix" to currentClientId.take(8)))
             val tokenResponse = neoDBApi.exchangeToken(tokenRequest)
-            
+            AppLogger.info(TAG, "NeoDB Token获取成功", mapOf("instance" to currentInstance, "tokenType" to tokenResponse.tokenType))
+
             val userProfile = neoDBApi.getUserProfile("Bearer ${tokenResponse.accessToken}")
-            
+            AppLogger.info(TAG, "NeoDB用户资料获取成功", mapOf("displayName" to userProfile.displayName))
+
             authRepository.setNeoDBAuth(
                 accessToken = tokenResponse.accessToken,
                 instance = currentInstance,
@@ -132,15 +156,27 @@ class NeoDBOAuthManager @Inject constructor(
                 refreshToken = tokenResponse.refreshToken,
                 expiresIn = 3600L // NeoDB tokens typically expire in 1 hour
             )
-            
+            AppLogger.info(TAG, "NeoDB认证信息已保存", mapOf("instance" to currentInstance))
+
             // 如果 BuildConfig 中没有设置，保存到本地
             if (BuildConfig.NEODB_CLIENT_ID.isEmpty()) {
                 saveAppCredentials(currentInstance, currentClientId, currentClientSecret)
             }
-            
+
             true
+        } catch (e: retrofit2.HttpException) {
+            val errorBody = e.response()?.errorBody()?.string() ?: ""
+            AppLogger.error(TAG, "NeoDB OAuth HTTP错误", e, mapOf(
+                "instance" to currentInstance,
+                "code" to e.code(),
+                "errorBody" to errorBody.take(200)
+            ))
+            false
         } catch (e: Exception) {
-            AppLogger.error(TAG, "NeoDB OAuth回调换Token失败", e, mapOf("instance" to currentInstance))
+            AppLogger.error(TAG, "NeoDB OAuth回调换Token失败", e, mapOf(
+                "instance" to currentInstance,
+                "type" to e.javaClass.simpleName
+            ))
             false
         }
     }

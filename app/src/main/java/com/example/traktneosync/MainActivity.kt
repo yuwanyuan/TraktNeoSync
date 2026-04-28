@@ -82,6 +82,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -177,25 +178,71 @@ class MainActivity : ComponentActivity() {
 
     private fun handleDeepLink(uri: Uri?) {
         if (uri == null) return
-        AppLogger.debug(TAG, "处理Deep Link", mapOf("uri" to uri.toString()))
+        AppLogger.info(TAG, "处理Deep Link", mapOf("uri" to uri.toString(), "host" to (uri.host ?: "null")))
 
         if (!::traktOAuthManager.isInitialized || !::neodbOAuthManager.isInitialized) {
             AppLogger.warn(TAG, "OAuth管理器未初始化，跳过Deep Link")
+            Toast.makeText(this, "OAuth管理器未初始化，请重启应用", Toast.LENGTH_LONG).show()
             return
         }
 
         when (uri.host) {
             "trakt" -> {
                 lifecycleScope.launch(Dispatchers.IO) {
-                    val success = traktOAuthManager.handleCallback(uri)
+                    val code = uri.getQueryParameter("code")
+                    if (code.isNullOrEmpty()) {
+                        AppLogger.error(TAG, "Trakt回调缺少code参数", null, mapOf("uri" to uri.toString()))
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(this@MainActivity, "Trakt授权失败：缺少授权码", Toast.LENGTH_LONG).show()
+                        }
+                        return@launch
+                    }
+                    AppLogger.info(TAG, "开始处理Trakt OAuth回调", mapOf("codePrefix" to code.take(4)))
+                    val success = try {
+                        traktOAuthManager.handleCallback(uri)
+                    } catch (e: Exception) {
+                        AppLogger.error(TAG, "Trakt OAuth回调处理异常", e)
+                        false
+                    }
+                    withContext(Dispatchers.Main) {
+                        if (success) {
+                            Toast.makeText(this@MainActivity, "Trakt 登录成功", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(this@MainActivity, "Trakt 登录失败，请重试", Toast.LENGTH_LONG).show()
+                        }
+                    }
                     AppLogger.info(TAG, "Trakt OAuth回调完成", mapOf("success" to success))
                 }
             }
             "neodb" -> {
                 lifecycleScope.launch(Dispatchers.IO) {
-                    val success = neodbOAuthManager.handleCallback(uri)
+                    val code = uri.getQueryParameter("code")
+                    if (code.isNullOrEmpty()) {
+                        AppLogger.error(TAG, "NeoDB回调缺少code参数", null, mapOf("uri" to uri.toString()))
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(this@MainActivity, "NeoDB授权失败：缺少授权码", Toast.LENGTH_LONG).show()
+                        }
+                        return@launch
+                    }
+                    AppLogger.info(TAG, "开始处理NeoDB OAuth回调", mapOf("codePrefix" to code.take(4)))
+                    val success = try {
+                        neodbOAuthManager.handleCallback(uri)
+                    } catch (e: Exception) {
+                        AppLogger.error(TAG, "NeoDB OAuth回调处理异常", e)
+                        false
+                    }
+                    withContext(Dispatchers.Main) {
+                        if (success) {
+                            Toast.makeText(this@MainActivity, "NeoDB 登录成功", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(this@MainActivity, "NeoDB 登录失败，请重试", Toast.LENGTH_LONG).show()
+                        }
+                    }
                     AppLogger.info(TAG, "NeoDB OAuth回调完成", mapOf("success" to success))
                 }
+            }
+            else -> {
+                AppLogger.warn(TAG, "未知的Deep Link host [host=${uri.host ?: "null"}]")
             }
         }
     }

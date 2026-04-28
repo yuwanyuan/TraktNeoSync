@@ -129,27 +129,45 @@ class TraktOAuthManager @Inject constructor(
     
     suspend fun handleCallback(uri: Uri): Boolean = withContext(Dispatchers.IO) {
         val code = uri.getQueryParameter("code") ?: return@withContext false
-        
+
+        AppLogger.info(TAG, "开始Trakt Token交换", mapOf("codePrefix" to code.take(4), "clientIdEmpty" to BuildConfig.TRAKT_CLIENT_ID.isEmpty()))
+
         return@withContext try {
             val tokenRequest = TraktTokenRequest(
                 code = code,
                 clientId = BuildConfig.TRAKT_CLIENT_ID,
                 clientSecret = BuildConfig.TRAKT_CLIENT_SECRET
             )
+            AppLogger.debug(TAG, "请求Trakt Token", mapOf("grantType" to tokenRequest.grantType))
             val tokenResponse = traktApi.exchangeToken(tokenRequest)
-            
+            AppLogger.info(TAG, "Trakt Token获取成功", mapOf("tokenType" to tokenResponse.tokenType, "expiresIn" to tokenResponse.expiresIn))
+
             val userProfile = traktApi.getUserProfile("Bearer ${tokenResponse.accessToken}")
-            
+            AppLogger.info(TAG, "Trakt用户资料获取成功", mapOf("username" to userProfile.username))
+
             authRepository.setTraktAuth(
                 accessToken = tokenResponse.accessToken,
                 refreshToken = tokenResponse.refreshToken,
                 user = userProfile.username,
                 expiresIn = tokenResponse.expiresIn
             )
-            
+            AppLogger.info(TAG, "Trakt认证信息已保存")
+
             true
+        } catch (e: retrofit2.HttpException) {
+            val errorBody = e.response()?.errorBody()?.string() ?: ""
+            AppLogger.error(TAG, "Trakt OAuth HTTP错误", e, mapOf(
+                "code" to e.code(),
+                "errorBody" to errorBody.take(200),
+                "clientIdEmpty" to BuildConfig.TRAKT_CLIENT_ID.isEmpty()
+            ))
+            false
         } catch (e: Exception) {
-            AppLogger.error(TAG, "Trakt OAuth回调换Token失败", e, mapOf("code" to code.take(4)))
+            AppLogger.error(TAG, "Trakt OAuth回调换Token失败", e, mapOf(
+                "code" to code.take(4),
+                "type" to e.javaClass.simpleName,
+                "clientIdEmpty" to BuildConfig.TRAKT_CLIENT_ID.isEmpty()
+            ))
             false
         }
     }
