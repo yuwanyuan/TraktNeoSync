@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.VideoLibrary
@@ -66,6 +67,7 @@ import com.example.traktneosync.data.AuthRepository
 import com.example.traktneosync.data.neodb.NeoDBOAuthManager
 import com.example.traktneosync.data.trakt.TraktOAuthManager
 import com.example.traktneosync.ui.detail.DetailScreen
+import com.example.traktneosync.ui.neodb.NeoDBScreen
 import com.example.traktneosync.ui.settings.SettingsScreen
 import com.example.traktneosync.ui.search.SearchScreen
 import com.example.traktneosync.ui.sync.SyncListItem
@@ -186,8 +188,8 @@ sealed class BottomNavItem(
     val icon: ImageVector
 ) {
     object Trakt : BottomNavItem("trakt", "Trakt", Icons.Default.VideoLibrary)
-    object Sync : BottomNavItem("sync", "同步", Icons.Default.Sync)
     object Search : BottomNavItem("search", "搜索", Icons.Default.Search)
+    object NeoDB : BottomNavItem("neodb", "NeoDB", Icons.Default.Bookmark)
     object Settings : BottomNavItem("settings", "设置", Icons.Default.Settings)
 }
 
@@ -203,7 +205,7 @@ fun TraktNeoSyncApp(
         val navItems = listOf(
             BottomNavItem.Trakt,
             BottomNavItem.Search,
-            BottomNavItem.Sync,
+            BottomNavItem.NeoDB,
             BottomNavItem.Settings
         )
         val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
@@ -285,7 +287,28 @@ fun TraktNeoSyncApp(
                         }
                     )
                 }
-                composable(BottomNavItem.Sync.route) {
+                composable(BottomNavItem.NeoDB.route) {
+                    NeoDBScreen(
+                        onNavigateToSync = {
+                            navController.navigate("sync") {
+                                launchSingleTop = true
+                            }
+                        },
+                        onNavigateToDetail = { mark ->
+                            val encodedTitle = java.net.URLEncoder.encode(mark.item.displayTitle, "UTF-8")
+                            val encodedPoster = java.net.URLEncoder.encode(mark.item.coverImageUrl ?: "_null_", "UTF-8")
+                            val type = when (mark.item.category) {
+                                "movie" -> "movie"
+                                "tv" -> "show"
+                                else -> "movie"
+                            }
+                            navController.navigate(
+                                "detail/$type/$encodedTitle/0/_null_/_null_/$encodedPoster/0"
+                            )
+                        }
+                    )
+                }
+                composable("sync") {
                     SyncScreen(
                         onNavigateToDetail = { item ->
                             val encodedTitle = java.net.URLEncoder.encode(item.title, "UTF-8")
