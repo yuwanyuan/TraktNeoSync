@@ -52,46 +52,54 @@ class NeoDBOAuthManager @Inject constructor(
             return@withContext true
         }
         
-        // 动态注册新应用
-        return@withContext try {
-            val request = NeoDBAppRegistrationRequest(
+        // 动态注册新应用（带重试）
+        var lastException: Exception? = null
+        repeat(2) { attempt ->
+            try {
+                AppLogger.info(TAG, "开始注册NeoDB应用", mapOf("instance" to instance, "attempt" to (attempt + 1), "url" to "https://$instance/api/v1/apps"))
+            val response = neoDBApi.registerApp(
                 clientName = "TraktNeoSync",
                 redirectUris = REDIRECT_URI
             )
+                currentClientId = response.clientId
+                currentClientSecret = response.clientSecret
 
-            AppLogger.info(TAG, "开始注册NeoDB应用", mapOf("instance" to instance, "url" to "https://$instance/api/v1/apps"))
-            val response = neoDBApi.registerApp(request)
-            currentClientId = response.clientId
-            currentClientSecret = response.clientSecret
+                if (currentClientId.isEmpty() || currentClientSecret.isEmpty()) {
+                    AppLogger.error(TAG, "NeoDB注册返回空凭证", null, mapOf("clientIdEmpty" to currentClientId.isEmpty(), "clientSecretEmpty" to currentClientSecret.isEmpty()))
+                    return@withContext false
+                }
 
-            if (currentClientId.isEmpty() || currentClientSecret.isEmpty()) {
-                AppLogger.error(TAG, "NeoDB注册返回空凭证", null, mapOf("clientIdEmpty" to currentClientId.isEmpty(), "clientSecretEmpty" to currentClientSecret.isEmpty()))
+                // 持久化保存
+                authRepository.saveNeoDBAppCredentials(currentClientId, currentClientSecret)
+                AppLogger.info(TAG, "NeoDB应用注册成功", mapOf("instance" to instance, "clientIdPrefix" to currentClientId.take(8)))
+
+                return@withContext true
+            } catch (e: retrofit2.HttpException) {
+                val errorBody = e.response()?.errorBody()?.string() ?: ""
+                AppLogger.error(TAG, "注册NeoDB应用HTTP失败", e, mapOf(
+                    "instance" to instance,
+                    "attempt" to (attempt + 1),
+                    "code" to e.code(),
+                    "errorBody" to errorBody.take(200)
+                ))
+                lastException = e
+                if (attempt == 0) kotlinx.coroutines.delay(1000)
+            } catch (e: java.net.UnknownHostException) {
+                AppLogger.error(TAG, "NeoDB实例无法解析", e, mapOf("instance" to instance, "attempt" to (attempt + 1)))
+                lastException = e
                 return@withContext false
+            } catch (e: java.net.SocketTimeoutException) {
+                AppLogger.error(TAG, "NeoDB连接超时", e, mapOf("instance" to instance, "attempt" to (attempt + 1)))
+                lastException = e
+                if (attempt == 0) kotlinx.coroutines.delay(1000)
+            } catch (e: Exception) {
+                AppLogger.error(TAG, "注册NeoDB应用失败", e, mapOf("instance" to instance, "attempt" to (attempt + 1), "type" to e.javaClass.simpleName))
+                lastException = e
+                if (attempt == 0) kotlinx.coroutines.delay(1000)
             }
-
-            // 持久化保存
-            authRepository.saveNeoDBAppCredentials(currentClientId, currentClientSecret)
-            AppLogger.info(TAG, "NeoDB应用注册成功", mapOf("instance" to instance, "clientIdPrefix" to currentClientId.take(8)))
-
-            true
-        } catch (e: retrofit2.HttpException) {
-            val errorBody = e.response()?.errorBody()?.string() ?: ""
-            AppLogger.error(TAG, "注册NeoDB应用HTTP失败", e, mapOf(
-                "instance" to instance,
-                "code" to e.code(),
-                "errorBody" to errorBody.take(200)
-            ))
-            false
-        } catch (e: java.net.UnknownHostException) {
-            AppLogger.error(TAG, "NeoDB实例无法解析", e, mapOf("instance" to instance))
-            false
-        } catch (e: java.net.SocketTimeoutException) {
-            AppLogger.error(TAG, "NeoDB连接超时", e, mapOf("instance" to instance))
-            false
-        } catch (e: Exception) {
-            AppLogger.error(TAG, "注册NeoDB应用失败", e, mapOf("instance" to instance, "type" to e.javaClass.simpleName))
-            false
         }
+
+        return@withContext false
     }
     
     // ========== OAuth URL ==========
@@ -116,7 +124,7 @@ class NeoDBOAuthManager @Inject constructor(
     suspend fun handleCallback(uri: Uri): Boolean = withContext(Dispatchers.IO) {
         val code = uri.getQueryParameter("code") ?: return@withContext false
 
-        if (currentClientId.isEmpty()) {
+        if (currentClientId.isEmpty() || currentClientSecret.isEmpty()) {
             val saved = authRepository.getNeoDBAppCredentials()
             if (saved != null) {
                 currentClientId = saved.first
@@ -124,10 +132,12 @@ class NeoDBOAuthManager @Inject constructor(
             } else if (BuildConfig.NEODB_CLIENT_ID.isNotEmpty()) {
                 currentClientId = BuildConfig.NEODB_CLIENT_ID
                 currentClientSecret = BuildConfig.NEODB_CLIENT_SECRET
-            } else {
-                AppLogger.error(TAG, "NeoDB回调时无应用凭证")
-                return@withContext false
             }
+        }
+
+        if (currentClientId.isEmpty() || currentClientSecret.isEmpty()) {
+            AppLogger.error(TAG, "NeoDB回调时无应用凭证", null, mapOf("clientIdEmpty" to currentClientId.isEmpty(), "clientSecretEmpty" to currentClientSecret.isEmpty()))
+            return@withContext false
         }
 
         val savedInstance = authRepository.neodbInstance.first()

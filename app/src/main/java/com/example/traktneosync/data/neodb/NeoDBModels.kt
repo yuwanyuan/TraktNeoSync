@@ -7,8 +7,11 @@ import com.google.gson.annotations.SerializedName
 data class NeoDBAppRegistrationRequest(
     @SerializedName("client_name") val clientName: String,
     @SerializedName("redirect_uris") val redirectUris: String,
-    @SerializedName("website") val website: String = "https://github.com"
+    @SerializedName("website") val website: String = "https://github.com",
+    @SerializedName("scopes") val scopes: String = "read write"
 )
+
+
 
 data class NeoDBAppRegistrationResponse(
     @SerializedName("client_id") val clientId: String = "",

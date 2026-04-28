@@ -2,6 +2,8 @@ package com.example.traktneosync.data.neodb
 
 import retrofit2.http.Body
 import retrofit2.http.DELETE
+import retrofit2.http.Field
+import retrofit2.http.FormUrlEncoded
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
@@ -12,9 +14,13 @@ interface NeoDBApiService {
     
     // ========== OAuth ==========
     
+    @FormUrlEncoded
     @POST("api/v1/apps")
     suspend fun registerApp(
-        @Body request: NeoDBAppRegistrationRequest
+        @Field("client_name") clientName: String,
+        @Field("redirect_uris") redirectUris: String,
+        @Field("website") website: String = "https://github.com",
+        @Field("scopes") scopes: String = "read write"
     ): NeoDBAppRegistrationResponse
     
     @POST("oauth/token")
