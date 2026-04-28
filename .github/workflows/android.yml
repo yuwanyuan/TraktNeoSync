@@ -46,17 +46,7 @@ jobs:
             echo "Keystore decoded successfully"
           fi
       
-      - name: Build Debug APK
-        if: github.event.inputs.build_type != 'release'
-        run: ./gradlew assembleDebug
-        env:
-          TRAKT_CLIENT_ID: ${{ secrets.TRAKT_CLIENT_ID }}
-          TRAKT_CLIENT_SECRET: ${{ secrets.TRAKT_CLIENT_SECRET }}
-          NEODB_CLIENT_ID: ${{ secrets.NEODB_CLIENT_ID }}
-          NEODB_CLIENT_SECRET: ${{ secrets.NEODB_CLIENT_SECRET }}
-      
       - name: Build Release APK
-        if: github.event.inputs.build_type == 'release'
         run: ./gradlew assembleRelease
         env:
           SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
@@ -67,16 +57,7 @@ jobs:
           NEODB_CLIENT_ID: ${{ secrets.NEODB_CLIENT_ID }}
           NEODB_CLIENT_SECRET: ${{ secrets.NEODB_CLIENT_SECRET }}
       
-      - name: Upload Debug APK
-        if: github.event.inputs.build_type != 'release'
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-apk
-          path: app/build/outputs/apk/debug/*.apk
-          retention-days: 7
-      
       - name: Upload Release APK
-        if: github.event.inputs.build_type == 'release'
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
@@ -84,7 +65,7 @@ jobs:
           retention-days: 30
 
   create-release:
-    if: github.event.inputs.build_type == 'release' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     
