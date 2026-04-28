@@ -18,6 +18,22 @@
     @retrofit2.http.* <methods>;
 }
 
+# Keep Retrofit ServiceMethod and HttpServiceMethod for reflection
+-keep class retrofit2.ServiceMethod { *; }
+-keep class retrofit2.HttpServiceMethod { *; }
+-keep class retrofit2.HttpServiceMethod$* { *; }
+-keep class retrofit2.Retrofit { *; }
+-keep class retrofit2.Retrofit$1 { *; }
+-keep class retrofit2.RequestFactory { *; }
+-keep class retrofit2.RequestFactory$* { *; }
+-keep class retrofit2.ParameterHandler { *; }
+-keep class retrofit2.ParameterHandler$* { *; }
+-keep class retrofit2.CallAdapter { *; }
+-keep class retrofit2.CallAdapter$* { *; }
+-keep class retrofit2.Converter { *; }
+-keep class retrofit2.Converter$* { *; }
+-keep class retrofit2.Utils { *; }
+
 -dontwarn org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement
 -dontwarn javax.annotation.**
 -dontwarn kotlin.Unit
@@ -37,8 +53,8 @@
 -keepclassmembers class * {
     @com.google.gson.annotations.SerializedName <fields>;
 }
--keep,allowobfuscation,allowshrinking class com.google.gson.reflect.TypeToken
--keep,allowobfuscation,allowshrinking class * extends com.google.gson.reflect.TypeToken
+-keep class com.google.gson.reflect.TypeToken { *; }
+-keep class * extends com.google.gson.reflect.TypeToken { *; }
 
 # ========== Kotlin ==========
 -keep class kotlin.Metadata { *; }
@@ -53,6 +69,12 @@
     volatile <fields>;
 }
 
+# Keep Kotlin Continuation for suspend functions
+-keep class kotlin.coroutines.Continuation { *; }
+-keep class kotlin.coroutines.CoroutineContext { *; }
+-keep class kotlin.coroutines.EmptyCoroutineContext { *; }
+-keep class kotlin.coroutines.intrinsics.CoroutineSingletons { *; }
+
 # ========== Hilt / Dagger ==========
 -keepclassmembers @dagger.hilt.android.HiltAndroidApp class * { *; }
 -keepclassmembers @dagger.hilt.android.AndroidEntryPoint class * { *; }
@@ -60,15 +82,14 @@
 -keep class * extends dagger.hilt.android.internal.managers.ViewComponentManager$FragmentContextWrapper { *; }
 
 # ========== Retrofit API interfaces (CRITICAL: must keep full method signatures) ==========
--keep interface com.example.traktneosync.data.trakt.TraktApiService {
-    <methods>;
-}
--keep interface com.example.traktneosync.data.neodb.NeoDBApiService {
-    <methods>;
-}
--keep interface com.example.traktneosync.data.tmdb.TmdbApiService {
-    <methods>;
-}
+-keep interface com.example.traktneosync.data.trakt.TraktApiService { *; }
+-keep interface com.example.traktneosync.data.neodb.NeoDBApiService { *; }
+-keep interface com.example.traktneosync.data.tmdb.TmdbApiService { *; }
+
+# Keep all suspend function signatures and generic return types
+-keepclassmembers interface com.example.traktneosync.data.trakt.TraktApiService { *; }
+-keepclassmembers interface com.example.traktneosync.data.neodb.NeoDBApiService { *; }
+-keepclassmembers interface com.example.traktneosync.data.tmdb.TmdbApiService { *; }
 
 # ========== App data classes - Trakt ==========
 -keep class com.example.traktneosync.data.trakt.TraktTokenResponse { *; }
