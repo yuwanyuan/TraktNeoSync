@@ -144,10 +144,10 @@ fun NeoDBScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    itemsIndexed(
-                        items = uiState.marks,
-                        key = { index, mark -> mark.uuid.ifBlank { "neodb_mark_$index" } }
-                    ) { _, mark ->
+                    items(
+                        items = uiState.marks.withIndex().toList(),
+                        key = { (index, mark) -> mark.uuid.ifBlank { "neodb_mark_$index" } }
+                    ) { (_, mark) ->
                         NeoDBMarkCard(
                             mark = mark,
                             onClick = { onNavigateToDetail(mark) }
