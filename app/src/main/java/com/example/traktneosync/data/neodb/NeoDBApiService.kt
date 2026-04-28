@@ -55,7 +55,8 @@ interface NeoDBApiService {
     suspend fun getShelf(
         @Header("Authorization") token: String,
         @Path("shelfType") shelfType: String,
-        @Query("page") page: Int = 1
+        @Query("page") page: Int = 1,
+        @Query("category") category: String? = null
     ): NeoDBPagedMarks
     
     // ========== 条目详情 ==========

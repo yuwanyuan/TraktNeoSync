@@ -71,13 +71,21 @@ class NeoDBViewModel @Inject constructor(
                     _uiState.value = _uiState.value.copy(isLoading = false, error = "未登录 NeoDB")
                     return@launch
                 }
-                val result = neoDBApi.getShelf(
-                    token = "Bearer $token",
-                    shelfType = shelf.apiValue
-                )
+                val allMarks = mutableListOf<NeoDBMark>()
+                var page = 1
+                while (true) {
+                    val result = neoDBApi.getShelf(
+                        token = "Bearer $token",
+                        shelfType = shelf.apiValue,
+                        page = page
+                    )
+                    allMarks.addAll(result.data)
+                    if (page >= result.pages || result.pages <= 0) break
+                    page++
+                }
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    marks = result.data,
+                    marks = allMarks,
                     error = null
                 )
             } catch (e: Exception) {

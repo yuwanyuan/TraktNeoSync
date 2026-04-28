@@ -90,25 +90,20 @@ class SyncRepository @Inject constructor(
         val token = authRepository.neodbAccessToken.first() ?: return@withContext emptyList()
         val allMarks = mutableListOf<NeoDBMark>()
         var page = 1
-        
+
         while (true) {
             try {
-                val response = neoDBApi.getShelf("Bearer $token", shelfType, page)
-                val filtered = if (category != null) {
-                    response.data.filter { it.item.category == category }
-                } else {
-                    response.data
-                }
-                allMarks.addAll(filtered)
-                
-                if (page >= response.pages) break
+                val response = neoDBApi.getShelf("Bearer $token", shelfType, page, category)
+                allMarks.addAll(response.data)
+
+                if (page >= response.pages || response.pages <= 0) break
                 page++
             } catch (e: Exception) {
                 AppLogger.error(TAG, "获取NeoDB书架失败", e, mapOf("shelf" to shelfType, "page" to page, "category" to (category ?: "all")))
                 break
             }
         }
-        
+
         return@withContext allMarks
     }
     
@@ -307,59 +302,71 @@ class SyncRepository @Inject constructor(
     
     suspend fun addToNeoDB(
         traktItem: TraktItem,
-        shelfType: String, // "wishlist", "progress", "complete"
+        shelfType: String,
         rating: Int? = null,
         comment: String? = null
     ): Result<Unit> = withContext(Dispatchers.IO) {
         if (!neodbOAuthManager.ensureValidToken()) return@withContext Result.failure(Exception("NeoDB token无效"))
         val token = authRepository.neodbAccessToken.first()
             ?: return@withContext Result.failure(Exception("NeoDB not authenticated"))
-        
+
         return@withContext try {
-            // 1. 先在 NeoDB 搜索该条目
+            val category = if (traktItem.type == "movie") "movie" else "tv"
+            val searchQuery = traktItem.title
+
             val searchResults = neoDBApi.search(
                 "Bearer $token",
-                "${traktItem.title} ${traktItem.year ?: ""}".trim(),
-                if (traktItem.type == "movie") "movie" else "tv",
+                searchQuery,
+                category,
                 1
             )
-            
+
             if (searchResults.data.isEmpty()) {
-                return@withContext Result.failure(Exception("Item not found in NeoDB"))
+                return@withContext Result.failure(Exception("在 NeoDB 中未找到: ${traktItem.title}"))
             }
-            
-            // 2. 找到最匹配的条目
-            val bestMatch = searchResults.data.firstOrNull { entry ->
-                // 尝试匹配 IMDB/TMDB ID
-                traktItem.ids.imdb?.let { imdbId ->
-                    if (entry.externalResources.any { it.url.contains(imdbId, ignoreCase = true) }) {
-                        return@firstOrNull true
-                    }
-                }
-                traktItem.ids.tmdb?.let { tmdbId ->
-                    if (entry.externalResources.any { it.url.contains(tmdbId.toString()) }) {
-                        return@firstOrNull true
-                    }
-                }
-                
-                // 标题匹配
-                entry.displayTitle.equals(traktItem.title, ignoreCase = true) ||
-                        entry.displayTitle.contains(traktItem.title, ignoreCase = true)
-            } ?: searchResults.data.first()
-            
-            // 3. 添加到书架
+
+            val bestMatch = findBestMatch(searchResults.data, traktItem)
+                ?: searchResults.data.first()
+
             val markRequest = NeoDBMarkRequest(
                 shelfType = shelfType,
                 ratingGrade = rating,
                 commentText = comment
             )
-            
+
             neoDBApi.addOrUpdateMark("Bearer $token", bestMatch.uuid, markRequest)
-            
+
             Result.success(Unit)
         } catch (e: Exception) {
             AppLogger.error(TAG, "添加到NeoDB失败", e, mapOf("title" to traktItem.title, "type" to traktItem.type, "shelf" to shelfType))
             Result.failure(e)
+        }
+    }
+
+    private fun findBestMatch(entries: List<com.example.traktneosync.data.neodb.NeoDBEntry>, traktItem: TraktItem): com.example.traktneosync.data.neodb.NeoDBEntry? {
+        traktItem.ids.tmdb?.let { tmdbId ->
+            entries.firstOrNull { entry ->
+                entry.externalResources.any { res ->
+                    val url = res.url
+                    (url.contains("themoviedb.org", ignoreCase = true) || url.contains("tmdb.org", ignoreCase = true)) &&
+                            (url.contains("/$tmdbId") || url.contains("/$tmdbId/") || url.endsWith("/$tmdbId"))
+                }
+            }?.let { return it }
+        }
+
+        traktItem.ids.imdb?.let { imdbId ->
+            entries.firstOrNull { entry ->
+                entry.externalResources.any { res ->
+                    val url = res.url
+                    (url.contains("imdb.com", ignoreCase = true) || url.contains("imdb.org", ignoreCase = true)) &&
+                            url.contains(imdbId, ignoreCase = true)
+                }
+            }?.let { return it }
+        }
+
+        return entries.firstOrNull { entry ->
+            entry.displayTitle.equals(traktItem.title, ignoreCase = true) &&
+                    (traktItem.year == null || entry.brief.contains(traktItem.year.toString()))
         }
     }
     

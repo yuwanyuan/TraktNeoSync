@@ -227,17 +227,18 @@ class NeoDBOAuthManager @Inject constructor(
 
         val expiresAt = authRepository.neodbTokenExpiresAt.first()
         if (expiresAt != null && System.currentTimeMillis() < expiresAt - 300_000) {
+            restoreInstanceIfNeeded()
             return@withContext true
         }
 
         if (expiresAt == null) {
+            restoreInstanceIfNeeded()
             return@withContext true
         }
 
         val refreshToken = authRepository.neodbRefreshToken.first()
             ?: return@withContext false
 
-        // 确保当前实例和凭证已设置
         if (currentClientId.isEmpty()) {
             val saved = authRepository.getNeoDBAppCredentials()
             if (saved != null) {
@@ -250,6 +251,8 @@ class NeoDBOAuthManager @Inject constructor(
                 return@withContext false
             }
         }
+
+        restoreInstanceIfNeeded()
 
         return@withContext try {
             val response = neoDBApi.refreshTokenForm(
@@ -266,6 +269,14 @@ class NeoDBOAuthManager @Inject constructor(
             AppLogger.error(TAG, "NeoDB Token刷新失败，需重新登录", e, mapOf("instance" to currentInstance))
             authRepository.clearNeoDBAuth()
             false
+        }
+    }
+
+    private suspend fun restoreInstanceIfNeeded() {
+        val savedInstance = authRepository.neodbInstance.first()
+        if (savedInstance != null && savedInstance.isNotBlank()) {
+            currentInstance = savedInstance
+            baseUrlProvider.baseUrl = "https://$savedInstance/"
         }
     }
 
