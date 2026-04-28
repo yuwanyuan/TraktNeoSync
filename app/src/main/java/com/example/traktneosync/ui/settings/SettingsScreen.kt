@@ -118,6 +118,15 @@ private fun SettingsMainScreen(
                 )
             }
 
+            item {
+                NeoDBCredentialCard(
+                    currentInstance = uiState.neodbInstance,
+                    onSave = { clientId, clientSecret, instance ->
+                        viewModel.saveNeoDBCredentials(clientId, clientSecret, instance)
+                    }
+                )
+            }
+
             item { SectionTitle("影视显示") }
 
             item {
@@ -885,4 +894,97 @@ private fun StatusBadge(
 private fun maskKey(key: String): String {
     if (key.length <= 12) return "*".repeat(key.length)
     return key.take(4) + " **** **** " + key.takeLast(4)
+}
+
+@Composable
+private fun NeoDBCredentialCard(
+    currentInstance: String,
+    onSave: (clientId: String, clientSecret: String, instance: String) -> Unit
+) {
+    var clientIdInput by remember { mutableStateOf("") }
+    var clientSecretInput by remember { mutableStateOf("") }
+    var instanceInput by remember { mutableStateOf(currentInstance.ifBlank { "neodb.social" }) }
+    var isEditing by remember { mutableStateOf(true) }
+
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .background(MaterialTheme.colorScheme.tertiary)
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AccountCircle,
+                        contentDescription = "NeoDB凭证",
+                        modifier = Modifier.size(36.dp),
+                        tint = MaterialTheme.colorScheme.tertiary
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "NeoDB 应用凭证",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "网络不通时手动填写，跳过自动注册",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                OutlinedTextField(
+                    value = instanceInput,
+                    onValueChange = { instanceInput = it },
+                    label = { Text("实例域名") },
+                    placeholder = { Text("neodb.social") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = clientIdInput,
+                    onValueChange = { clientIdInput = it },
+                    label = { Text("Client ID") },
+                    placeholder = { Text("输入 Client ID...") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = clientSecretInput,
+                    onValueChange = { clientSecretInput = it },
+                    label = { Text("Client Secret") },
+                    placeholder = { Text("输入 Client Secret...") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                Button(
+                    onClick = {
+                        onSave(clientIdInput, clientSecretInput, instanceInput)
+                        isEditing = false
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = clientIdInput.isNotBlank() && clientSecretInput.isNotBlank()
+                ) {
+                    Text("保存凭证")
+                }
+            }
+        }
+    }
 }

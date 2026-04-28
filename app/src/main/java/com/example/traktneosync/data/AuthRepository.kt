@@ -34,6 +34,9 @@ class AuthRepository @Inject constructor(
         val NEODB_APP_CLIENT_ID = stringPreferencesKey("neodb_app_client_id")
         val NEODB_APP_CLIENT_SECRET = stringPreferencesKey("neodb_app_client_secret")
 
+        // NeoDB 手动输入的实例域名
+        val NEODB_MANUAL_INSTANCE = stringPreferencesKey("neodb_manual_instance")
+
         // TMDB API Key
         val TMDB_API_KEY = stringPreferencesKey("tmdb_api_key")
 
@@ -127,6 +130,25 @@ class AuthRepository @Inject constructor(
         val clientId = prefs[Keys.NEODB_APP_CLIENT_ID] ?: return null
         val clientSecret = prefs[Keys.NEODB_APP_CLIENT_SECRET] ?: return null
         return Pair(clientId, clientSecret)
+    }
+
+    // ========== NeoDB 手动实例 ==========
+    
+    val neodbManualInstance: Flow<String?> = dataStore.data.map { it[Keys.NEODB_MANUAL_INSTANCE] }
+
+    suspend fun setNeoDBManualInstance(instance: String) {
+        dataStore.edit { prefs ->
+            val trimmed = instance.trim()
+            if (trimmed.isBlank()) {
+                prefs.remove(Keys.NEODB_MANUAL_INSTANCE)
+            } else {
+                prefs[Keys.NEODB_MANUAL_INSTANCE] = trimmed
+            }
+        }
+    }
+
+    suspend fun getNeoDBManualInstance(): String? {
+        return dataStore.data.first()[Keys.NEODB_MANUAL_INSTANCE]
     }
 
     // ========== TMDB API Key ==========

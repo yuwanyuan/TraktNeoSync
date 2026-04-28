@@ -50,7 +50,8 @@ class SettingsViewModel @Inject constructor(
                 authRepository.neodbUser,
                 authRepository.tmdbApiKey,
                 authRepository.preferredLanguage,
-                authRepository.darkTheme
+                authRepository.darkTheme,
+                authRepository.neodbManualInstance
             ) { values: Array<String?> ->
                 val traktToken = values[0]
                 val traktUser = values[1]
@@ -59,6 +60,7 @@ class SettingsViewModel @Inject constructor(
                 val tmdbKey = values[4]
                 val lang = values[5]
                 val dark = values[6]
+                val neodbInstance = values[7]
                 _uiState.value.copy(
                     traktConnected = traktToken != null,
                     traktUsername = traktUser,
@@ -66,7 +68,8 @@ class SettingsViewModel @Inject constructor(
                     neodbUsername = neodbUser,
                     tmdbApiKey = tmdbKey ?: "",
                     preferredLanguage = lang ?: "zh-CN",
-                    darkThemeMode = dark ?: "system"
+                    darkThemeMode = dark ?: "system",
+                    neodbInstance = neodbInstance ?: ""
                 )
             }.collect { state ->
                 _uiState.value = state
@@ -155,6 +158,23 @@ class SettingsViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(neodbError = null)
     }
 
+    fun saveNeoDBCredentials(clientId: String, clientSecret: String, instance: String) {
+        viewModelScope.launch {
+            val trimmedId = clientId.trim()
+            val trimmedSecret = clientSecret.trim()
+            val trimmedInstance = instance.trim()
+            if (trimmedId.isNotBlank() && trimmedSecret.isNotBlank()) {
+                authRepository.saveNeoDBAppCredentials(trimmedId, trimmedSecret)
+            }
+            if (trimmedInstance.isNotBlank()) {
+                authRepository.setNeoDBManualInstance(trimmedInstance)
+            } else {
+                authRepository.setNeoDBManualInstance("")
+            }
+            AppLogger.info(TAG, "手动保存NeoDB凭证", mapOf("clientIdPrefix" to trimmedId.take(8), "instance" to trimmedInstance))
+        }
+    }
+
     fun saveTmdbApiKey(key: String) {
         viewModelScope.launch {
             authRepository.setTmdbApiKey(key)
@@ -225,6 +245,7 @@ data class SettingsUiState(
     val neodbUsername: String? = null,
     val neodbLoading: Boolean = false,
     val neodbError: String? = null,
+    val neodbInstance: String = "",
     val tmdbApiKey: String = "",
     val tmdbKeyTesting: Boolean = false,
     val tmdbKeyValid: Boolean? = null,
