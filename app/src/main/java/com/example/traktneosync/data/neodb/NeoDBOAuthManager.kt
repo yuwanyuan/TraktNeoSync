@@ -41,26 +41,28 @@ class NeoDBOAuthManager @Inject constructor(
         if (BuildConfig.NEODB_CLIENT_ID.isNotEmpty()) {
             currentClientId = BuildConfig.NEODB_CLIENT_ID
             currentClientSecret = BuildConfig.NEODB_CLIENT_SECRET
+            AppLogger.info(TAG, "使用BuildConfig预设NeoDB凭证", mapOf("clientIdPrefix" to currentClientId.take(8)))
             return@withContext true
         }
-        
+
         // 尝试从持久化存储读取
         val saved = authRepository.getNeoDBAppCredentials()
         if (saved != null) {
             currentClientId = saved.first
             currentClientSecret = saved.second
+            AppLogger.info(TAG, "使用已保存的NeoDB凭证", mapOf("clientIdPrefix" to currentClientId.take(8)))
             return@withContext true
         }
-        
+
         // 动态注册新应用（带重试）
         var lastException: Exception? = null
         repeat(2) { attempt ->
             try {
                 AppLogger.info(TAG, "开始注册NeoDB应用", mapOf("instance" to instance, "attempt" to (attempt + 1), "url" to "https://$instance/api/v1/apps"))
-            val response = neoDBApi.registerApp(
-                clientName = "TraktNeoSync",
-                redirectUris = REDIRECT_URI
-            )
+                val response = neoDBApi.registerApp(
+                    clientName = "TraktNeoSync",
+                    redirectUris = REDIRECT_URI
+                )
                 currentClientId = response.clientId
                 currentClientSecret = response.clientSecret
 
@@ -114,9 +116,17 @@ class NeoDBOAuthManager @Inject constructor(
     }
     
     fun openAuthorizationInBrowser() {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(getAuthorizationUrl()))
+        val url = getAuthorizationUrl()
+        AppLogger.info(TAG, "打开NeoDB授权页面", mapOf("url" to url, "instance" to currentInstance, "clientIdEmpty" to currentClientId.isEmpty()))
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        context.startActivity(intent)
+        try {
+            context.startActivity(intent)
+            AppLogger.info(TAG, "NeoDB授权页面已打开")
+        } catch (e: Exception) {
+            AppLogger.error(TAG, "打开NeoDB授权页面失败", e, mapOf("url" to url))
+            throw e
+        }
     }
     
     // ========== 处理回调 ==========
@@ -147,13 +157,12 @@ class NeoDBOAuthManager @Inject constructor(
         }
 
         return@withContext try {
-            val tokenRequest = NeoDBTokenRequest(
+            AppLogger.debug(TAG, "请求NeoDB Token", mapOf("instance" to currentInstance, "clientIdPrefix" to currentClientId.take(8)))
+            val tokenResponse = neoDBApi.exchangeTokenForm(
                 clientId = currentClientId,
                 clientSecret = currentClientSecret,
                 code = code
             )
-            AppLogger.debug(TAG, "请求NeoDB Token", mapOf("instance" to currentInstance, "clientIdPrefix" to currentClientId.take(8)))
-            val tokenResponse = neoDBApi.exchangeToken(tokenRequest)
             AppLogger.info(TAG, "NeoDB Token获取成功", mapOf("instance" to currentInstance, "tokenType" to tokenResponse.tokenType))
 
             val userProfile = neoDBApi.getUserProfile("Bearer ${tokenResponse.accessToken}")
@@ -234,12 +243,11 @@ class NeoDBOAuthManager @Inject constructor(
         }
 
         return@withContext try {
-            val request = NeoDBRefreshTokenRequest(
+            val response = neoDBApi.refreshTokenForm(
                 clientId = currentClientId,
                 clientSecret = currentClientSecret,
                 refreshToken = refreshToken
             )
-            val response = neoDBApi.refreshToken(request)
             authRepository.updateNeoDBAccessToken(
                 accessToken = response.accessToken,
                 expiresIn = 3600L

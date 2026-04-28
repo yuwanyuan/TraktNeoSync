@@ -22,6 +22,25 @@ interface NeoDBApiService {
         @Field("website") website: String = "https://github.com",
         @Field("scopes") scopes: String = "read write"
     ): NeoDBAppRegistrationResponse
+
+    @FormUrlEncoded
+    @POST("oauth/token")
+    suspend fun exchangeTokenForm(
+        @Field("client_id") clientId: String,
+        @Field("client_secret") clientSecret: String,
+        @Field("code") code: String,
+        @Field("redirect_uri") redirectUri: String = "traktneosync://neodb",
+        @Field("grant_type") grantType: String = "authorization_code"
+    ): NeoDBTokenResponse
+
+    @FormUrlEncoded
+    @POST("oauth/token")
+    suspend fun refreshTokenForm(
+        @Field("client_id") clientId: String,
+        @Field("client_secret") clientSecret: String,
+        @Field("refresh_token") refreshToken: String,
+        @Field("grant_type") grantType: String = "refresh_token"
+    ): NeoDBTokenResponse
     
     @POST("oauth/token")
     suspend fun exchangeToken(

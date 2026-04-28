@@ -134,7 +134,14 @@ class SettingsViewModel @Inject constructor(
                 return@launch
             }
             _uiState.value = _uiState.value.copy(neodbLoading = false)
-            neodbOAuthManager.openAuthorizationInBrowser()
+            try {
+                neodbOAuthManager.openAuthorizationInBrowser()
+            } catch (e: Exception) {
+                AppLogger.error(TAG, "打开NeoDB浏览器授权失败", e)
+                _uiState.value = _uiState.value.copy(
+                    neodbError = "无法打开浏览器: ${e.message ?: "未知错误"}"
+                )
+            }
         }
     }
 
