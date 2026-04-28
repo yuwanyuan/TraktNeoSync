@@ -217,10 +217,10 @@ class SearchViewModel @Inject constructor(
     }
 
     // 从 TMDB 获取评分和 IMDb ID
-    private suspend fun fetchTmdbInfo(entry: NeoDBEntry): NeoDBEntry {
+    private suspend fun fetchTmdbInfo(entry: NeoDBEntry, year: Int? = null): NeoDBEntry {
         return try {
             val searchResult = if (entry.category == "movie") {
-                tmdbApi.searchMovie(query = entry.displayTitle)
+                tmdbApi.searchMovie(query = entry.displayTitle, year = year)
             } else {
                 tmdbApi.searchTv(query = entry.displayTitle)
             }

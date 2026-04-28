@@ -32,7 +32,7 @@ fun NeoDBScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(viewModel) {
         viewModel.initialLoad()
     }
 
@@ -117,7 +117,7 @@ fun NeoDBScreen(
                         color = MaterialTheme.colorScheme.error
                     )
                     Text(
-                        text = uiState.error!!,
+                        text = uiState.error ?: "未知错误",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

@@ -108,11 +108,11 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             TraktNeoSyncTheme {
-                var showErrorScreen by remember { mutableStateOf(lastCrash != null) }
-                var errorMessage by remember { mutableStateOf(lastCrash ?: "") }
-                var showDiagnostic by remember { mutableStateOf(false) }
-                var hiltInjectionOk by remember { mutableStateOf(false) }
-                var hiltError by remember { mutableStateOf<String?>(null) }
+                var showErrorScreen by rememberSaveable { mutableStateOf(lastCrash != null) }
+                var errorMessage by rememberSaveable { mutableStateOf(lastCrash ?: "") }
+                var showDiagnostic by rememberSaveable { mutableStateOf(false) }
+                var hiltInjectionOk by rememberSaveable { mutableStateOf(false) }
+                var hiltError by rememberSaveable { mutableStateOf<String?>(null) }
 
                 // 检查 Hilt 注入状态
                 try {
@@ -171,13 +171,13 @@ class MainActivity : ComponentActivity() {
 
         when (uri.host) {
             "trakt" -> {
-                CoroutineScope(Dispatchers.IO).launch {
+                lifecycleScope.launch(Dispatchers.IO) {
                     val success = traktOAuthManager.handleCallback(uri)
                     Log.d(TAG, "Trakt OAuth callback: success=$success")
                 }
             }
             "neodb" -> {
-                CoroutineScope(Dispatchers.IO).launch {
+                lifecycleScope.launch(Dispatchers.IO) {
                     val success = neodbOAuthManager.handleCallback(uri)
                     Log.d(TAG, "NeoDB OAuth callback: success=$success")
                 }
@@ -485,8 +485,8 @@ fun DiagnosticScreen(
     onDismiss: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    var showLogs by remember { mutableStateOf(false) }
-    var logContent by remember { mutableStateOf("") }
+    var showLogs by rememberSaveable { mutableStateOf(false) }
+    var logContent by rememberSaveable { mutableStateOf("") }
 
     Surface(
         modifier = Modifier.fillMaxSize(),

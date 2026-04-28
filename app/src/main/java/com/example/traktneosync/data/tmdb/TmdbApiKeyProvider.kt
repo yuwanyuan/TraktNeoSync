@@ -7,5 +7,9 @@ import javax.inject.Singleton
 @Singleton
 class TmdbApiKeyProvider @Inject constructor() {
     @Volatile
-    var apiKey: String = BuildConfig.TMDB_API_KEY.takeIf { it.isNotEmpty() } ?: ""
+    private var _apiKey: String = BuildConfig.TMDB_API_KEY.takeIf { it.isNotEmpty() } ?: ""
+
+    var apiKey: String
+        @Synchronized get() = _apiKey
+        @Synchronized set(value) { _apiKey = value }
 }

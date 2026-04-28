@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.sync.withPermit
 import java.time.Instant
 import javax.inject.Inject
@@ -121,12 +122,14 @@ class MoviesViewModel @Inject constructor(
                 val semaphore = Semaphore(TMDB_CONCURRENCY)
                 val deferredList = sorted.map { item ->
                     async {
-                        semaphore.withPermit {
-                            val detail = item.tmdbId?.let { fetchTmdbDetailCached(it, isMovie = true) }
-                            item.copy(
-                                title = detail?.chineseTitle?.takeIf { it.isNotBlank() } ?: item.title,
-                                posterUrl = detail?.posterUrl
-                            )
+                        withTimeout(15000) {
+                            semaphore.withPermit {
+                                val detail = item.tmdbId?.let { fetchTmdbDetailCached(it, isMovie = true) }
+                                item.copy(
+                                    title = detail?.chineseTitle?.takeIf { it.isNotBlank() } ?: item.title,
+                                    posterUrl = detail?.posterUrl
+                                )
+                            }
                         }
                     }
                 }
@@ -210,7 +213,7 @@ class MoviesViewModel @Inject constructor(
             // 写入空缓存，防止反复请求失败条目
             try {
                 cacheDao.insertPosters(listOf(PosterCacheEntity(tmdbId = tmdbId, posterPath = null)))
-            } catch (_: Exception) { }
+            } catch (e: Exception) { AppLogger.log("MoviesViewModel: 写入空缓存失败 tmdbId=$tmdbId", e) }
             // 失败时如果有缓存的海报，返回缓存的海报URL
             val fallbackPosterUrl = cachedPoster?.posterPath?.let { "https://image.tmdb.org/t/p/w200$it" }
             TmdbDetailResult(posterUrl = fallbackPosterUrl, chineseTitle = null)

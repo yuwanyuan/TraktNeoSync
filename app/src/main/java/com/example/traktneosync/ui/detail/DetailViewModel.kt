@@ -29,6 +29,10 @@ class DetailViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "DetailViewModel"
+        private val BR_REGEX = Regex("<br\\s*/?>")
+        private val P_OPEN_REGEX = Regex("<p>")
+        private val P_CLOSE_REGEX = Regex("</p>")
+        private val TAG_REGEX = Regex("<[^>]+>")
     }
 
     private val _uiState = MutableStateFlow(DetailUiState())
@@ -57,10 +61,10 @@ class DetailViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-            val token = authRepository.neodbAccessToken.first()
-            if (token.isNullOrEmpty()) {
+                val token = authRepository.neodbAccessToken.first()
+                if (token.isNullOrEmpty()) {
                     _uiState.update { it.copy(isLoadingReviews = false, reviewError = "NeoDB 未登录") }
-                    return@launch
+                return@launch
                 }
 
                 var searchTitle = title
@@ -346,10 +350,10 @@ class DetailViewModel @Inject constructor(
     private fun sanitizeContent(raw: String?): String {
         if (raw.isNullOrBlank()) return ""
         return raw
-            .replace(Regex("<br\\s*/?>"), "\n")
-            .replace(Regex("<p>"), "")
-            .replace(Regex("</p>"), "\n\n")
-            .replace(Regex("<[^>]+>"), "")
+            .replace(BR_REGEX, "\n")
+            .replace(P_OPEN_REGEX, "")
+            .replace(P_CLOSE_REGEX, "\n\n")
+            .replace(TAG_REGEX, "")
             .trim()
     }
 

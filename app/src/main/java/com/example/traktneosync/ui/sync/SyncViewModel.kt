@@ -94,7 +94,8 @@ class SyncViewModel @Inject constructor(
                                 status = "已观看",
                                 isSynced = neodbMark != null,
                                 traktItem = traktItem,
-                                neoDBMark = neodbMark
+                                neoDBMark = neodbMark,
+                                shelfType = "complete"
                             )
                         )
                     }
@@ -123,7 +124,8 @@ class SyncViewModel @Inject constructor(
                                 status = "已观看 (${item.plays} 集)",
                                 isSynced = neodbMark != null,
                                 traktItem = traktItem,
-                                neoDBMark = neodbMark
+                                neoDBMark = neodbMark,
+                                shelfType = "complete"
                             )
                         )
                     }
@@ -150,7 +152,8 @@ class SyncViewModel @Inject constructor(
                                 status = "待看",
                                 isSynced = neodbMark != null,
                                 traktItem = traktItem,
-                                neoDBMark = neodbMark
+                                neoDBMark = neodbMark,
+                                shelfType = "wishlist"
                             )
                         )
                     }
@@ -177,7 +180,8 @@ class SyncViewModel @Inject constructor(
                                 status = "待看",
                                 isSynced = neodbMark != null,
                                 traktItem = traktItem,
-                                neoDBMark = neodbMark
+                                neoDBMark = neodbMark,
+                                shelfType = "wishlist"
                             )
                         )
                     }
@@ -209,11 +213,7 @@ class SyncViewModel @Inject constructor(
 
     fun addToNeoDB(item: SyncListItem) {
         viewModelScope.launch {
-            val shelfType = when (item.status) {
-                "已观看", "已观看 (${item.traktItem.plays} 集)" -> "complete"
-                "待看" -> "wishlist"
-                else -> "wishlist"
-            }
+            val shelfType = item.shelfType
 
             val result = syncRepository.addToNeoDB(item.traktItem, shelfType)
 
@@ -248,11 +248,7 @@ class SyncViewModel @Inject constructor(
                     )
                 )
                 
-                val shelfType = when {
-                    item.status.startsWith("已观看") -> "complete"
-                    item.status == "待看" -> "wishlist"
-                    else -> "wishlist"
-                }
+                val shelfType = item.shelfType
                 
                 val result = syncRepository.addToNeoDB(item.traktItem, shelfType)
                 result.fold(
@@ -304,7 +300,8 @@ data class SyncListItem(
     val status: String, // "已观看" or "待看"
     val isSynced: Boolean,
     val traktItem: SyncRepository.TraktItem,
-    val neoDBMark: NeoDBMark? = null
+    val neoDBMark: NeoDBMark? = null,
+    val shelfType: String = "wishlist" // "complete" or "wishlist"
 )
 
 data class SyncUiState(

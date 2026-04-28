@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.sync.withPermit
 import java.time.Instant
 import javax.inject.Inject
@@ -125,12 +126,14 @@ class ShowsViewModel @Inject constructor(
                 val semaphore = Semaphore(TMDB_CONCURRENCY)
                 val deferredList = sorted.map { item ->
                     async {
-                        semaphore.withPermit {
-                            val detail = item.tmdbId?.let { fetchTmdbDetailCached(it) }
-                            item.copy(
-                                title = detail?.chineseTitle?.takeIf { it.isNotBlank() } ?: item.title,
-                                posterUrl = detail?.posterUrl
-                            )
+                        withTimeout(15000) {
+                            semaphore.withPermit {
+                                val detail = item.tmdbId?.let { fetchTmdbDetailCached(it) }
+                                item.copy(
+                                    title = detail?.chineseTitle?.takeIf { it.isNotBlank() } ?: item.title,
+                                    posterUrl = detail?.posterUrl
+                                )
+                            }
                         }
                     }
                 }
@@ -201,7 +204,7 @@ class ShowsViewModel @Inject constructor(
             AppLogger.log("ShowsViewModel: TMDB详情获取失败 tmdbId=$tmdbId, ${e.message}")
             try {
                 cacheDao.insertPosters(listOf(PosterCacheEntity(tmdbId = tmdbId, posterPath = null)))
-            } catch (_: Exception) { }
+            } catch (e: Exception) { AppLogger.log("ShowsViewModel: 写入空缓存失败 tmdbId=$tmdbId", e) }
             val fallbackPosterUrl = cachedPoster?.posterPath?.let { "https://image.tmdb.org/t/p/w200$it" }
             TmdbDetailResult(posterUrl = fallbackPosterUrl, chineseTitle = null)
         }

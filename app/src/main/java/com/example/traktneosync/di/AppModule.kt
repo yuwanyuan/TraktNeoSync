@@ -170,7 +170,7 @@ object AppModule {
             context,
             AppDatabase::class.java,
             "traktneosync_cache.db"
-        ).build()
+        ).fallbackToDestructiveMigration().build()
     }
 
     @Provides

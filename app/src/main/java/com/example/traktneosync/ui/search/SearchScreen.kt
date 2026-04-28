@@ -110,7 +110,7 @@ fun SearchScreen(
             }
             uiState.error != null -> {
                 ErrorState(
-                    error = uiState.error!!,
+                    error = uiState.error ?: "未知错误",
                     onRetry = { viewModel.search() }
                 )
             }
