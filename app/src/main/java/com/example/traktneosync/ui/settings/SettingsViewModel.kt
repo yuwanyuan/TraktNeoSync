@@ -6,6 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.example.traktneosync.data.AuthRepository
 import com.example.traktneosync.data.cache.CacheDao
 import com.example.traktneosync.data.neodb.NeoDBOAuthManager
+import com.example.traktneosync.data.proxy.ProxyConfig
+import com.example.traktneosync.data.proxy.ProxyProvider
+import com.example.traktneosync.data.proxy.ProxyRepository
+import com.example.traktneosync.data.proxy.ProxyType
 import com.example.traktneosync.data.tmdb.TmdbApiKeyProvider
 import com.example.traktneosync.data.tmdb.TmdbApiService
 import com.example.traktneosync.data.trakt.TraktOAuthManager
@@ -17,7 +21,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import okhttp3.Credentials
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import java.io.File
+import java.net.InetSocketAddress
+import java.net.Proxy
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 @HiltViewModel
@@ -28,6 +38,8 @@ class SettingsViewModel @Inject constructor(
     private val tmdbApi: TmdbApiService,
     private val tmdbKeyProvider: TmdbApiKeyProvider,
     private val cacheDao: CacheDao,
+    private val proxyRepository: ProxyRepository,
+    private val proxyProvider: ProxyProvider,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -51,16 +63,18 @@ class SettingsViewModel @Inject constructor(
                 authRepository.tmdbApiKey,
                 authRepository.preferredLanguage,
                 authRepository.darkTheme,
-                authRepository.neodbManualInstance
-            ) { values: Array<String?> ->
-                val traktToken = values[0]
-                val traktUser = values[1]
-                val neodbToken = values[2]
-                val neodbUser = values[3]
-                val tmdbKey = values[4]
-                val lang = values[5]
-                val dark = values[6]
-                val neodbInstance = values[7]
+                authRepository.neodbManualInstance,
+                proxyRepository.proxyConfig
+            ) { values: Array<Any?> ->
+                val traktToken = values[0] as? String
+                val traktUser = values[1] as? String
+                val neodbToken = values[2] as? String
+                val neodbUser = values[3] as? String
+                val tmdbKey = values[4] as? String
+                val lang = values[5] as? String
+                val dark = values[6] as? String
+                val neodbInstance = values[7] as? String
+                val proxyCfg = values[8] as? ProxyConfig ?: ProxyConfig()
                 _uiState.value.copy(
                     traktConnected = traktToken != null,
                     traktUsername = traktUser,
@@ -69,7 +83,8 @@ class SettingsViewModel @Inject constructor(
                     tmdbApiKey = tmdbKey ?: "",
                     preferredLanguage = lang ?: "zh-CN",
                     darkThemeMode = dark ?: "system",
-                    neodbInstance = neodbInstance ?: ""
+                    neodbInstance = neodbInstance ?: "",
+                    proxyConfig = proxyCfg
                 )
             }.collect { state ->
                 _uiState.value = state
@@ -236,6 +251,90 @@ class SettingsViewModel @Inject constructor(
             }
         }
     }
+
+    fun saveProxyConfig(config: ProxyConfig) {
+        viewModelScope.launch {
+            proxyRepository.saveProxyConfig(config)
+            proxyProvider.config = config
+            AppLogger.info(TAG, "代理配置已保存", mapOf("type" to config.type.name, "host" to config.host, "port" to config.port.toString()))
+        }
+    }
+
+    fun testProxy(config: ProxyConfig) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(proxyTesting = true, proxyTestResult = null)
+            if (!config.isEnabled) {
+                _uiState.value = _uiState.value.copy(
+                    proxyTesting = false,
+                    proxyTestResult = ProxyTestResult(success = false, message = "代理未启用或配置不完整")
+                )
+                return@launch
+            }
+
+            try {
+                val proxy = Proxy(
+                    when (config.type) {
+                        ProxyType.HTTP -> Proxy.Type.HTTP
+                        ProxyType.SOCKS5 -> Proxy.Type.SOCKS
+                        ProxyType.NONE -> throw IllegalArgumentException("代理类型未设置")
+                    },
+                    InetSocketAddress.createUnresolved(config.host, config.port)
+                )
+
+                val clientBuilder = OkHttpClient.Builder()
+                    .proxy(proxy)
+                    .connectTimeout(10, TimeUnit.SECONDS)
+                    .readTimeout(10, TimeUnit.SECONDS)
+
+                if (config.username.isNotBlank()) {
+                    val credential = Credentials.basic(config.username, config.password)
+                    clientBuilder.addInterceptor { chain ->
+                        val request = chain.request().newBuilder()
+                            .header("Proxy-Authorization", credential)
+                            .build()
+                        chain.proceed(request)
+                    }
+                }
+
+                val client = clientBuilder.build()
+                val request = Request.Builder()
+                    .url("https://www.google.com/generate_204")
+                    .head()
+                    .build()
+
+                val response = client.newCall(request).execute()
+                val success = response.isSuccessful || response.code == 204
+                val message = if (success) {
+                    "连接成功 (${response.code})"
+                } else {
+                    "连接失败 (HTTP ${response.code})"
+                }
+
+                _uiState.value = _uiState.value.copy(
+                    proxyTesting = false,
+                    proxyTestResult = ProxyTestResult(success = success, message = message)
+                )
+                AppLogger.info(TAG, "代理测试完成", mapOf("success" to success, "message" to message))
+            } catch (e: Exception) {
+                val message = when (e) {
+                    is java.net.ConnectException -> "连接被拒绝，请检查地址和端口"
+                    is java.net.SocketTimeoutException -> "连接超时，请检查代理是否可用"
+                    is java.net.UnknownHostException -> "无法解析主机名"
+                    is java.io.IOException -> "认证失败或网络错误: ${e.message}"
+                    else -> "连接失败: ${e.message ?: e.javaClass.simpleName}"
+                }
+                _uiState.value = _uiState.value.copy(
+                    proxyTesting = false,
+                    proxyTestResult = ProxyTestResult(success = false, message = message)
+                )
+                AppLogger.warn(TAG, "代理测试失败", e)
+            }
+        }
+    }
+
+    fun clearProxyTestResult() {
+        _uiState.value = _uiState.value.copy(proxyTestResult = null)
+    }
 }
 
 data class SettingsUiState(
@@ -252,4 +351,12 @@ data class SettingsUiState(
     val preferredLanguage: String = "zh-CN",
     val darkThemeMode: String = "system",
     val cacheSize: String = "0 B",
+    val proxyConfig: ProxyConfig = ProxyConfig(),
+    val proxyTesting: Boolean = false,
+    val proxyTestResult: ProxyTestResult? = null
+)
+
+data class ProxyTestResult(
+    val success: Boolean,
+    val message: String
 )

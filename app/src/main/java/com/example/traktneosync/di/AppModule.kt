@@ -10,6 +10,7 @@ import com.example.traktneosync.data.cache.AppDatabase
 import com.example.traktneosync.data.cache.CacheDao
 import com.example.traktneosync.data.neodb.NeoDBApiService
 import com.example.traktneosync.data.neodb.NeoDBBaseUrlProvider
+import com.example.traktneosync.data.proxy.ProxyProvider
 import com.example.traktneosync.data.tmdb.TmdbApiKeyProvider
 import com.example.traktneosync.data.tmdb.TmdbApiService
 import com.example.traktneosync.data.tmdb.TmdbLanguageProvider
@@ -24,6 +25,8 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.net.InetSocketAddress
+import java.net.Proxy
 import java.util.concurrent.TimeUnit
 import javax.inject.Qualifier
 import javax.inject.Singleton
@@ -33,22 +36,26 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
-    
+
     @Provides
     @Singleton
     fun provideDataStore(@ApplicationContext context: Context): DataStore<Preferences> {
         return context.dataStore
     }
-    
+
     @Provides
     @Singleton
     @TraktHttpClient
-    fun provideTraktHttpClient(langProvider: TmdbLanguageProvider): OkHttpClient {
+    fun provideTraktHttpClient(
+        langProvider: TmdbLanguageProvider,
+        proxyProvider: ProxyProvider
+    ): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
         }
 
         return OkHttpClient.Builder()
+            .applyProxy(proxyProvider)
             .addInterceptor(logging)
             .addInterceptor(Interceptor { chain ->
                 val lang = langProvider.language.takeIf { it.isNotEmpty() } ?: "zh-CN"
@@ -62,11 +69,14 @@ object AppModule {
             })
             .build()
     }
-    
+
     @Provides
     @Singleton
     @NeoDBHttpClient
-    fun provideNeoDBHttpClient(baseUrlProvider: NeoDBBaseUrlProvider): OkHttpClient {
+    fun provideNeoDBHttpClient(
+        baseUrlProvider: NeoDBBaseUrlProvider,
+        proxyProvider: ProxyProvider
+    ): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
         }
@@ -76,12 +86,11 @@ object AppModule {
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
+            .applyProxy(proxyProvider)
             .addInterceptor(logging)
             .addInterceptor(Interceptor { chain ->
                 val original = chain.request()
                 val url = original.url.toString()
-                // Dynamic base URL rewrite for custom NeoDB instances
-                // Exclude api.neodb.app which is a separate public API
                 val newUrl = if (url.startsWith(defaultBase) && !url.contains("api.neodb.app")) {
                     url.replaceFirst(defaultBase, baseUrlProvider.baseUrl.let {
                         if (!it.endsWith("/")) "$it/" else it
@@ -97,7 +106,7 @@ object AppModule {
             })
             .build()
     }
-    
+
     @Provides
     @Singleton
     fun provideTraktApiService(@TraktHttpClient client: OkHttpClient): TraktApiService {
@@ -108,7 +117,7 @@ object AppModule {
             .build()
             .create(TraktApiService::class.java)
     }
-    
+
     @Provides
     @Singleton
     @NeoDBRetrofit
@@ -119,7 +128,7 @@ object AppModule {
             .addConverterFactory(GsonConverterFactory.create())
             .build()
     }
-    
+
     @Provides
     @Singleton
     fun provideNeoDBApiService(@NeoDBRetrofit retrofit: Retrofit): NeoDBApiService {
@@ -136,12 +145,14 @@ object AppModule {
     @Singleton
     fun provideTmdbHttpClient(
         keyProvider: TmdbApiKeyProvider,
-        langProvider: TmdbLanguageProvider
+        langProvider: TmdbLanguageProvider,
+        proxyProvider: ProxyProvider
     ): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BASIC
         }
         return OkHttpClient.Builder()
+            .applyProxy(proxyProvider)
             .addInterceptor(logging)
             .addInterceptor(Interceptor { chain ->
                 val apiKey = keyProvider.apiKey.takeIf { it.isNotEmpty() }
@@ -183,6 +194,23 @@ object AppModule {
     @Singleton
     fun provideCacheDao(database: AppDatabase): CacheDao {
         return database.cacheDao()
+    }
+
+    private fun OkHttpClient.Builder.applyProxy(proxyProvider: ProxyProvider): OkHttpClient.Builder {
+        val proxy = proxyProvider.createProxy()
+        if (proxy != null) {
+            proxy(proxy)
+        }
+        if (proxyProvider.hasAuth()) {
+            val credential = proxyProvider.authHeader()!!
+            addInterceptor(Interceptor { chain ->
+                val request = chain.request().newBuilder()
+                    .header("Proxy-Authorization", credential)
+                    .build()
+                chain.proceed(request)
+            })
+        }
+        return this
     }
 }
 

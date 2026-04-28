@@ -4,6 +4,8 @@ import android.app.Application
 import android.content.Context
 import android.util.Log
 import com.example.traktneosync.data.AuthRepository
+import com.example.traktneosync.data.proxy.ProxyProvider
+import com.example.traktneosync.data.proxy.ProxyRepository
 import com.example.traktneosync.util.AppLogger
 import com.example.traktneosync.util.LogLevel
 import dagger.hilt.android.HiltAndroidApp
@@ -14,6 +16,7 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 @HiltAndroidApp
@@ -47,9 +50,13 @@ class TraktNeoSyncApp : Application() {
                     AppInitializerEntryPoint::class.java
                 )
                 val authRepo = entryPoint.authRepository()
+                val proxyRepo = entryPoint.proxyRepository()
+                val proxyProv = entryPoint.proxyProvider()
                 authRepo.initTmdbKey()
                 authRepo.initLanguage()
-                AppLogger.info(TAG, "TMDB设置已从DataStore恢复")
+                val proxyConfig = proxyRepo.proxyConfig.first()
+                proxyProv.config = proxyConfig
+                AppLogger.info(TAG, "TMDB设置已从DataStore恢复", mapOf("proxyEnabled" to proxyConfig.isEnabled.toString()))
             } catch (e: Exception) {
                 AppLogger.error(TAG, "恢复TMDB设置失败", e)
             }
@@ -83,4 +90,6 @@ class TraktNeoSyncApp : Application() {
 @InstallIn(SingletonComponent::class)
 interface AppInitializerEntryPoint {
     fun authRepository(): AuthRepository
+    fun proxyRepository(): ProxyRepository
+    fun proxyProvider(): ProxyProvider
 }

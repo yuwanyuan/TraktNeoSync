@@ -17,6 +17,8 @@ import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.VpnKeyOff
+import androidx.compose.material.icons.filled.VpnLock
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -26,12 +28,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.traktneosync.BuildConfig
+import com.example.traktneosync.data.proxy.ProxyConfig
+import com.example.traktneosync.data.proxy.ProxyType
 import com.example.traktneosync.util.LogLevel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -139,6 +144,19 @@ private fun SettingsMainScreen(
                     keyValid = uiState.tmdbKeyValid,
                     onSave = { viewModel.saveTmdbApiKey(it) },
                     onTest = { viewModel.testTmdbApiKey(it) }
+                )
+            }
+
+            item { SectionTitle("网络代理") }
+
+            item {
+                ProxyCard(
+                    proxyConfig = uiState.proxyConfig,
+                    proxyTesting = uiState.proxyTesting,
+                    proxyTestResult = uiState.proxyTestResult,
+                    onSave = { viewModel.saveProxyConfig(it) },
+                    onTest = { viewModel.testProxy(it) },
+                    onClearResult = { viewModel.clearProxyTestResult() }
                 )
             }
 
@@ -897,6 +915,296 @@ private fun StatusBadge(
 private fun maskKey(key: String): String {
     if (key.length <= 12) return "*".repeat(key.length)
     return key.take(4) + " **** **** " + key.takeLast(4)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ProxyCard(
+    proxyConfig: ProxyConfig,
+    proxyTesting: Boolean,
+    proxyTestResult: ProxyTestResult?,
+    onSave: (ProxyConfig) -> Unit,
+    onTest: (ProxyConfig) -> Unit,
+    onClearResult: () -> Unit
+) {
+    var typeExpanded by remember { mutableStateOf(false) }
+    var selectedType by remember { mutableStateOf(proxyConfig.type) }
+    var hostInput by remember { mutableStateOf(proxyConfig.host) }
+    var portInput by remember { mutableStateOf(if (proxyConfig.port > 0) proxyConfig.port.toString() else "") }
+    var usernameInput by remember { mutableStateOf(proxyConfig.username) }
+    var passwordInput by remember { mutableStateOf(proxyConfig.password) }
+    var showAdvanced by remember { mutableStateOf(proxyConfig.username.isNotBlank()) }
+
+    val isConfigured = proxyConfig.isEnabled
+    val indicatorColor = when {
+        proxyTestResult?.success == true -> MaterialTheme.colorScheme.primary
+        proxyTestResult?.success == false -> MaterialTheme.colorScheme.error
+        isConfigured -> MaterialTheme.colorScheme.tertiary
+        else -> MaterialTheme.colorScheme.outlineVariant
+    }
+
+    val currentConfig = ProxyConfig(
+        type = selectedType,
+        host = hostInput.trim(),
+        port = portInput.toIntOrNull() ?: 0,
+        username = usernameInput.trim(),
+        password = passwordInput
+    )
+
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .background(indicatorColor)
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isConfigured) Icons.Default.VpnLock else Icons.Default.VpnKeyOff,
+                        contentDescription = "代理",
+                        modifier = Modifier.size(36.dp),
+                        tint = indicatorColor
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "网络代理",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        val statusText = when {
+                            proxyTesting -> "测试中..."
+                            proxyTestResult?.success == true -> "代理可用"
+                            proxyTestResult?.success == false -> "代理不可用"
+                            isConfigured -> "已配置 · ${proxyConfig.displayText}"
+                            else -> "未配置"
+                        }
+                        StatusBadge(text = statusText, color = indicatorColor)
+                    }
+                }
+
+                if (isConfigured && proxyTestResult == null && !proxyTesting) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f))
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.VpnLock,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.tertiary
+                        )
+                        Text(
+                            text = proxyConfig.displayText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.tertiary
+                        )
+                    }
+                }
+
+                ExposedDropdownMenuBox(
+                    expanded = typeExpanded,
+                    onExpandedChange = { typeExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        value = selectedType.label,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("代理类型") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeExpanded) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = typeExpanded,
+                        onDismissRequest = { typeExpanded = false }
+                    ) {
+                        ProxyType.entries.forEach { type ->
+                            DropdownMenuItem(
+                                text = { Text(type.label) },
+                                onClick = {
+                                    selectedType = type
+                                    typeExpanded = false
+                                    onClearResult()
+                                }
+                            )
+                        }
+                    }
+                }
+
+                if (selectedType != ProxyType.NONE) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = hostInput,
+                            onValueChange = { hostInput = it; onClearResult() },
+                            label = { Text("主机地址") },
+                            placeholder = { Text("例如: 127.0.0.1") },
+                            modifier = Modifier.weight(2f),
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = portInput,
+                            onValueChange = {
+                                portInput = it.filter { c -> c.isDigit() }
+                                onClearResult()
+                            },
+                            label = { Text("端口") },
+                            placeholder = { Text("1080") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "认证",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Switch(
+                            checked = showAdvanced,
+                            onCheckedChange = { showAdvanced = it }
+                        )
+                    }
+
+                    if (showAdvanced) {
+                        OutlinedTextField(
+                            value = usernameInput,
+                            onValueChange = { usernameInput = it; onClearResult() },
+                            label = { Text("用户名") },
+                            placeholder = { Text("可选") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = passwordInput,
+                            onValueChange = { passwordInput = it; onClearResult() },
+                            label = { Text("密码") },
+                            placeholder = { Text("可选") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    }
+
+                    proxyTestResult?.let { result ->
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (result.success) {
+                                    MaterialTheme.colorScheme.primaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.errorContainer
+                                }
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = result.message,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (result.success) {
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.onErrorContainer
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                TextButton(onClick = onClearResult) {
+                                    Text(
+                                        "关闭",
+                                        color = if (result.success) {
+                                            MaterialTheme.colorScheme.onPrimaryContainer
+                                        } else {
+                                            MaterialTheme.colorScheme.onErrorContainer
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { onTest(currentConfig) },
+                            enabled = !proxyTesting && currentConfig.isEnabled,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            if (proxyTesting) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("测试中")
+                            } else {
+                                Text("测试连接")
+                            }
+                        }
+                        Button(
+                            onClick = { onSave(currentConfig) },
+                            enabled = currentConfig.isEnabled || selectedType == ProxyType.NONE,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("保存")
+                        }
+                    }
+
+                    if (isConfigured) {
+                        OutlinedButton(
+                            onClick = {
+                                selectedType = ProxyType.NONE
+                                hostInput = ""
+                                portInput = ""
+                                usernameInput = ""
+                                passwordInput = ""
+                                showAdvanced = false
+                                onSave(ProxyConfig())
+                                onClearResult()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error
+                            )
+                        ) {
+                            Text("关闭代理")
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
