@@ -466,7 +466,7 @@ fun DetailScreen(
             }
 
             // 相关图片
-            val allImages = uiState.backdropUrls + uiState.posterUrls
+            val allImages = (uiState.backdropUrls + uiState.posterUrls).filter { it.isNotBlank() }.distinct()
             if (allImages.isNotEmpty()) {
                 item {
                     Column(modifier = Modifier.fillMaxWidth()) {
@@ -480,7 +480,10 @@ fun DetailScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            items(allImages, key = { it }) { url ->
+                            items(
+                            items = allImages,
+                            key = { index -> "img_${index}_${it.takeLast(20)}" }
+                        ) { url ->
                                 AsyncImage(
                                     model = url,
                                     contentDescription = null,
@@ -562,7 +565,10 @@ fun DetailScreen(
                     }
                 }
                 else -> {
-                    items(uiState.reviews, key = { it.username + it.date + it.content }) { review ->
+                    items(
+                        items = uiState.reviews,
+                        key = { index -> "${index}_" + it.username + it.date }
+                    ) { review ->
                         ReviewCard(review = review)
                     }
                 }
