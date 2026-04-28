@@ -482,7 +482,7 @@ fun DetailScreen(
                         ) {
                             items(
                             items = allImages,
-                            key = { index -> "img_${index}_${it.takeLast(20)}" }
+                            key = { it.takeLast(30) }
                         ) { url ->
                                 AsyncImage(
                                     model = url,
@@ -566,10 +566,10 @@ fun DetailScreen(
                 }
                 else -> {
                     items(
-                        items = uiState.reviews,
-                        key = { index -> "${index}_" + it.username + it.date }
-                    ) { review ->
-                        ReviewCard(review = review)
+                        count = uiState.reviews.size,
+                        key = { index -> "${index}_" + uiState.reviews[index].username + uiState.reviews[index].date }
+                    ) { index ->
+                        ReviewCard(review = uiState.reviews[index])
                     }
                 }
             }
