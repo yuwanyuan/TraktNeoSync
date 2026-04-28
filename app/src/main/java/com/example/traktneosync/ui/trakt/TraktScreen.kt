@@ -35,24 +35,28 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TraktScreen(
+    selectedTypeIndex: Int = 0,
+    onSelectedTypeChange: (Int) -> Unit = {},
     snackbarHostState: SnackbarHostState? = null,
     onNavigateToMovieDetail: (MovieItem) -> Unit = {},
     onNavigateToShowDetail: (ShowItem) -> Unit = {}
 ) {
-    // 0 = 电影, 1 = 剧集
-    var selectedTypeIndex by rememberSaveable { mutableStateOf(0) }
-    val pagerState = rememberPagerState(pageCount = { 2 })
+    val pagerState = rememberPagerState(
+        initialPage = selectedTypeIndex,
+        pageCount = { 2 }
+    )
     val scope = rememberCoroutineScope()
 
-    // 同步按钮状态与 Pager 页面
+    // 外部状态驱动 Pager 滚动
     LaunchedEffect(selectedTypeIndex) {
         if (pagerState.currentPage != selectedTypeIndex) {
             pagerState.animateScrollToPage(selectedTypeIndex)
         }
     }
+    // Pager 滑动回写外部状态
     LaunchedEffect(pagerState.currentPage) {
         if (pagerState.currentPage != selectedTypeIndex) {
-            selectedTypeIndex = pagerState.currentPage
+            onSelectedTypeChange(pagerState.currentPage)
         }
     }
 
@@ -78,7 +82,7 @@ fun TraktScreen(
             } else {
                 OutlinedButton(
                     onClick = {
-                        selectedTypeIndex = 0
+                        onSelectedTypeChange(0)
                         scope.launch { pagerState.animateScrollToPage(0) }
                     },
                     modifier = Modifier.weight(1f)
@@ -97,7 +101,7 @@ fun TraktScreen(
             } else {
                 OutlinedButton(
                     onClick = {
-                        selectedTypeIndex = 1
+                        onSelectedTypeChange(1)
                         scope.launch { pagerState.animateScrollToPage(1) }
                     },
                     modifier = Modifier.weight(1f)

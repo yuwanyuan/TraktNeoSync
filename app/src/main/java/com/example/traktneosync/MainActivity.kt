@@ -29,6 +29,8 @@ import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.lifecycleScope
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -206,6 +208,9 @@ fun TraktNeoSyncApp(
         )
         val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
 
+        // Trakt 页面电影/剧集切换状态，提升到 MainActivity 层级共享
+        var traktTypeIndex by rememberSaveable { mutableIntStateOf(0) }
+
         Scaffold(
             modifier = modifier.fillMaxSize(),
             topBar = {
@@ -234,6 +239,10 @@ fun TraktNeoSyncApp(
                             label = { Text(item.title) },
                             selected = currentDestination?.hierarchy?.any { it.route == item.route } == true,
                             onClick = {
+                                if (item.route == BottomNavItem.Trakt.route) {
+                                    // 点击 Trakt 底栏：切换电影/剧集
+                                    traktTypeIndex = if (traktTypeIndex == 0) 1 else 0
+                                }
                                 navController.navigate(item.route) {
                                     popUpTo(navController.graph.findStartDestination().id) {
                                         saveState = true
@@ -255,6 +264,8 @@ fun TraktNeoSyncApp(
             ) {
                 composable(BottomNavItem.Trakt.route) {
                     TraktScreen(
+                        selectedTypeIndex = traktTypeIndex,
+                        onSelectedTypeChange = { traktTypeIndex = it },
                         snackbarHostState = snackbarHostState,
                         onNavigateToMovieDetail = { movie ->
                             val encodedTitle = java.net.URLEncoder.encode(movie.title, "UTF-8")
