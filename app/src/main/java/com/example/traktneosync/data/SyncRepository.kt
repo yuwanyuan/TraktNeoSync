@@ -3,8 +3,10 @@ package com.example.traktneosync.data
 import com.example.traktneosync.data.neodb.NeoDBApiService
 import com.example.traktneosync.data.neodb.NeoDBMark
 import com.example.traktneosync.data.neodb.NeoDBMarkRequest
+import com.example.traktneosync.data.neodb.NeoDBOAuthManager
 import com.example.traktneosync.data.trakt.TraktApiService
 import com.example.traktneosync.data.trakt.TraktIds
+import com.example.traktneosync.data.trakt.TraktOAuthManager
 import com.example.traktneosync.data.trakt.TraktWatchedItem
 import com.example.traktneosync.data.trakt.TraktWatchlistItem
 import com.example.traktneosync.util.AppLogger
@@ -20,7 +22,9 @@ import javax.inject.Singleton
 class SyncRepository @Inject constructor(
     private val traktApi: TraktApiService,
     private val neoDBApi: NeoDBApiService,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val traktOAuthManager: TraktOAuthManager,
+    private val neodbOAuthManager: NeoDBOAuthManager
 ) {
     companion object {
         private const val TAG = "SyncRepository"
@@ -29,6 +33,7 @@ class SyncRepository @Inject constructor(
     // ========== Trakt 数据获取 ==========
     
     suspend fun getTraktWatchedMovies(): List<TraktWatchedItem> = withContext(Dispatchers.IO) {
+        if (!traktOAuthManager.ensureValidToken()) return@withContext emptyList()
         val token = authRepository.traktAccessToken.first() ?: return@withContext emptyList()
         return@withContext try {
             traktApi.getWatchedMovies("Bearer $token")
@@ -39,6 +44,7 @@ class SyncRepository @Inject constructor(
     }
     
     suspend fun getTraktWatchedShows(): List<TraktWatchedItem> = withContext(Dispatchers.IO) {
+        if (!traktOAuthManager.ensureValidToken()) return@withContext emptyList()
         val token = authRepository.traktAccessToken.first() ?: return@withContext emptyList()
         return@withContext try {
             traktApi.getWatchedShows("Bearer $token")
@@ -49,6 +55,7 @@ class SyncRepository @Inject constructor(
     }
     
     suspend fun getTraktMovieWatchlist(): List<TraktWatchlistItem> = withContext(Dispatchers.IO) {
+        if (!traktOAuthManager.ensureValidToken()) return@withContext emptyList()
         val token = authRepository.traktAccessToken.first() ?: return@withContext emptyList()
         return@withContext try {
             traktApi.getMovieWatchlist("Bearer $token")
@@ -59,6 +66,7 @@ class SyncRepository @Inject constructor(
     }
     
     suspend fun getTraktShowWatchlist(): List<TraktWatchlistItem> = withContext(Dispatchers.IO) {
+        if (!traktOAuthManager.ensureValidToken()) return@withContext emptyList()
         val token = authRepository.traktAccessToken.first() ?: return@withContext emptyList()
         return@withContext try {
             traktApi.getShowWatchlist("Bearer $token")
@@ -78,6 +86,7 @@ class SyncRepository @Inject constructor(
     suspend fun getNeoDBProgressTV(): List<NeoDBMark> = getNeoDBShelf("progress", "tv")
     
     private suspend fun getNeoDBShelf(shelfType: String, category: String? = null): List<NeoDBMark> = withContext(Dispatchers.IO) {
+        if (!neodbOAuthManager.ensureValidToken()) return@withContext emptyList()
         val token = authRepository.neodbAccessToken.first() ?: return@withContext emptyList()
         val allMarks = mutableListOf<NeoDBMark>()
         var page = 1
@@ -303,7 +312,8 @@ class SyncRepository @Inject constructor(
         rating: Int? = null,
         comment: String? = null
     ): Result<Unit> = withContext(Dispatchers.IO) {
-        val token = authRepository.neodbAccessToken.first() 
+        if (!neodbOAuthManager.ensureValidToken()) return@withContext Result.failure(Exception("NeoDB token无效"))
+        val token = authRepository.neodbAccessToken.first()
             ?: return@withContext Result.failure(Exception("NeoDB not authenticated"))
         
         return@withContext try {

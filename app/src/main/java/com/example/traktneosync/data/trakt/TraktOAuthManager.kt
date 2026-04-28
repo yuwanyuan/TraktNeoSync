@@ -175,9 +175,15 @@ class TraktOAuthManager @Inject constructor(
     // ========== Token 刷新 ==========
 
     suspend fun ensureValidToken(): Boolean = withContext(Dispatchers.IO) {
+        val accessToken = authRepository.traktAccessToken.first()
+            ?: return@withContext false
+
         val expiresAt = authRepository.traktTokenExpiresAt.first()
-        // 如果 token 将在 5 分钟内过期，提前刷新
         if (expiresAt != null && System.currentTimeMillis() < expiresAt - 300_000) {
+            return@withContext true
+        }
+
+        if (expiresAt == null) {
             return@withContext true
         }
 

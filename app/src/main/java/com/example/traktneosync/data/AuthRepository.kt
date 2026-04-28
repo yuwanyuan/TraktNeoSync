@@ -110,8 +110,6 @@ class AuthRepository @Inject constructor(
             prefs.remove(Keys.NEODB_TOKEN_EXPIRES_AT)
             prefs.remove(Keys.NEODB_INSTANCE)
             prefs.remove(Keys.NEODB_USER)
-            prefs.remove(Keys.NEODB_APP_CLIENT_ID)
-            prefs.remove(Keys.NEODB_APP_CLIENT_SECRET)
         }
     }
     

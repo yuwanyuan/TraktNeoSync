@@ -94,7 +94,27 @@ class NeoDBOAuthManager @Inject constructor(
     
     suspend fun handleCallback(uri: Uri): Boolean = withContext(Dispatchers.IO) {
         val code = uri.getQueryParameter("code") ?: return@withContext false
-        
+
+        if (currentClientId.isEmpty()) {
+            val saved = authRepository.getNeoDBAppCredentials()
+            if (saved != null) {
+                currentClientId = saved.first
+                currentClientSecret = saved.second
+            } else if (BuildConfig.NEODB_CLIENT_ID.isNotEmpty()) {
+                currentClientId = BuildConfig.NEODB_CLIENT_ID
+                currentClientSecret = BuildConfig.NEODB_CLIENT_SECRET
+            } else {
+                AppLogger.error(TAG, "NeoDB回调时无应用凭证")
+                return@withContext false
+            }
+        }
+
+        val savedInstance = authRepository.neodbInstance.first()
+        if (savedInstance != null && currentInstance != savedInstance) {
+            currentInstance = savedInstance
+            baseUrlProvider.baseUrl = "https://$savedInstance/"
+        }
+
         return@withContext try {
             val tokenRequest = NeoDBTokenRequest(
                 clientId = currentClientId,
@@ -138,9 +158,15 @@ class NeoDBOAuthManager @Inject constructor(
     // ========== Token 刷新 ==========
 
     suspend fun ensureValidToken(): Boolean = withContext(Dispatchers.IO) {
+        val accessToken = authRepository.neodbAccessToken.first()
+            ?: return@withContext false
+
         val expiresAt = authRepository.neodbTokenExpiresAt.first()
-        // 如果 token 将在 5 分钟内过期，提前刷新
         if (expiresAt != null && System.currentTimeMillis() < expiresAt - 300_000) {
+            return@withContext true
+        }
+
+        if (expiresAt == null) {
             return@withContext true
         }
 
