@@ -1,10 +1,14 @@
 package com.example.traktneosync
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -385,6 +389,8 @@ fun CrashDiagnosticScreen(
     hiltError: String?,
     onDismiss: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = Color(0xFFFFEBEE) // 浅红色背景
@@ -444,6 +450,19 @@ fun CrashDiagnosticScreen(
                     .background(Color.White)
                     .padding(8.dp)
             )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedButton(
+                onClick = {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    val clip = ClipData.newPlainText("崩溃日志", errorMessage)
+                    clipboard.setPrimaryClip(clip)
+                    Toast.makeText(context, "已复制到剪贴板", Toast.LENGTH_SHORT).show()
+                }
+            ) {
+                Text("复制崩溃日志")
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -527,11 +546,27 @@ fun DiagnosticScreen(
 
             if (showLogs && logContent.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "日志内容:",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = Color(0xFF1565C0)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "日志内容:",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = Color(0xFF1565C0)
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            val clip = ClipData.newPlainText("日志", logContent)
+                            clipboard.setPrimaryClip(clip)
+                            Toast.makeText(context, "已复制到剪贴板", Toast.LENGTH_SHORT).show()
+                        }
+                    ) {
+                        Text("复制日志")
+                    }
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = logContent,
