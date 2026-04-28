@@ -31,6 +31,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.traktneosync.util.LogLevel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,6 +48,7 @@ fun SettingsScreen(
             onBack = { currentPage = "main" },
             onLanguageChange = { viewModel.setPreferredLanguage(it) },
             onDarkThemeChange = { viewModel.setDarkTheme(it) },
+            onLogLevelChange = { viewModel.setLogLevel(it) },
             onClearCache = {
                 viewModel.clearCache {
                     Toast.makeText(context, "缓存已清理", Toast.LENGTH_SHORT).show()
@@ -182,6 +184,7 @@ private fun PreferencesScreen(
     onBack: () -> Unit,
     onLanguageChange: (String) -> Unit,
     onDarkThemeChange: (String) -> Unit,
+    onLogLevelChange: (LogLevel) -> Unit,
     onClearCache: () -> Unit,
     onOpenGithub: () -> Unit
 ) {
@@ -225,6 +228,10 @@ private fun PreferencesScreen(
                     cacheSize = uiState.cacheSize,
                     onClear = onClearCache
                 )
+            }
+
+            item {
+                LogLevelCard(onLogLevelChange = onLogLevelChange)
             }
 
             item {
@@ -484,6 +491,93 @@ private fun GithubCard(onOpen: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LogLevelCard(onLogLevelChange: (LogLevel) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    var selectedLevel by remember { mutableStateOf(LogLevel.INFO) }
+
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.BugReport,
+                    contentDescription = "日志级别",
+                    modifier = Modifier.size(36.dp),
+                    tint = MaterialTheme.colorScheme.tertiary
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "日志级别",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "当前: ${selectedLevel.name} · 控制日志输出粒度",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Text(
+                    text = if (expanded) "▲" else "▼",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            if (expanded) {
+                Spacer(modifier = Modifier.height(8.dp))
+                LogLevel.entries.filter { it != LogLevel.NONE }.forEach { level ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                selectedLevel = level
+                                onLogLevelChange(level)
+                                expanded = false
+                            }
+                            .padding(vertical = 8.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        RadioButton(
+                            selected = level == selectedLevel,
+                            onClick = {
+                                selectedLevel = level
+                                onLogLevelChange(level)
+                                expanded = false
+                            }
+                        )
+                        Column {
+                            Text(
+                                text = level.name,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = if (level == selectedLevel) FontWeight.Bold else FontWeight.Normal
+                            )
+                            Text(
+                                text = when (level) {
+                                    LogLevel.DEBUG -> "输出所有日志，包括调试信息"
+                                    LogLevel.INFO -> "输出关键操作和错误信息"
+                                    LogLevel.WARN -> "仅输出警告和错误"
+                                    LogLevel.ERROR -> "仅输出错误"
+                                    else -> ""
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
             }
         }
     }

@@ -5,6 +5,7 @@ import android.content.Context
 import android.util.Log
 import com.example.traktneosync.data.AuthRepository
 import com.example.traktneosync.util.AppLogger
+import com.example.traktneosync.util.LogLevel
 import dagger.hilt.android.HiltAndroidApp
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -28,19 +29,17 @@ class TraktNeoSyncApp : Application() {
     override fun onCreate() {
         super.onCreate()
 
-        // 初始化 AppLogger 的 Application Context
         AppLogger.init(this)
+        AppLogger.setLogLevel(if (BuildConfig.DEBUG) LogLevel.DEBUG else LogLevel.INFO)
+        AppLogger.setFileLogLevel(LogLevel.INFO)
 
-        // 全局未捕获异常处理器 - 记录崩溃信息到 SharedPreferences
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            Log.e(TAG, "UNCAUGHT EXCEPTION on thread ${thread.name}", throwable)
+            AppLogger.error(TAG, "未捕获异常", throwable, mapOf("thread" to thread.name))
             saveCrashLog(throwable)
-            AppLogger.log("未捕获异常 (线程: ${thread.name})", throwable)
             defaultHandler?.uncaughtException(thread, throwable)
         }
 
-        // 从 DataStore 恢复 TMDB API Key 和语言设置到 Provider（解决重启后图片加载失败）
         applicationScope.launch {
             try {
                 val entryPoint = EntryPointAccessors.fromApplication(
@@ -50,15 +49,13 @@ class TraktNeoSyncApp : Application() {
                 val authRepo = entryPoint.authRepository()
                 authRepo.initTmdbKey()
                 authRepo.initLanguage()
-                Log.d(TAG, "TMDB API Key & Language initialized from DataStore")
-                AppLogger.log("App启动: TMDB API Key和语言设置已从DataStore恢复")
+                AppLogger.info(TAG, "TMDB设置已从DataStore恢复")
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to init TMDB key/language on startup", e)
-                AppLogger.log("App启动: 恢复TMDB设置失败", e)
+                AppLogger.error(TAG, "恢复TMDB设置失败", e)
             }
         }
 
-        Log.d(TAG, "Application onCreate - Hilt initialized successfully")
+        AppLogger.info(TAG, "Application onCreate完成")
     }
 
     private fun saveCrashLog(throwable: Throwable) {
@@ -67,7 +64,7 @@ class TraktNeoSyncApp : Application() {
             val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             prefs.edit().putString(KEY_LAST_CRASH, stackTrace).apply()
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to save crash log", e)
+            AppLogger.error(TAG, "保存崩溃日志失败", e)
         }
     }
 

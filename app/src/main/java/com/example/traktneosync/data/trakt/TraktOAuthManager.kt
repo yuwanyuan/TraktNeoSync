@@ -3,9 +3,9 @@ package com.example.traktneosync.data.trakt
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.util.Log
 import com.example.traktneosync.BuildConfig
 import com.example.traktneosync.data.AuthRepository
+import com.example.traktneosync.util.AppLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -53,7 +53,7 @@ class TraktOAuthManager @Inject constructor(
                 interval = response.interval
             )
         } catch (e: Exception) {
-            Log.e(TAG, "Error starting device code flow: ${e.message}")
+            AppLogger.error(TAG, "启动Device Code Flow失败", e)
             null
         }
     }
@@ -149,7 +149,7 @@ class TraktOAuthManager @Inject constructor(
             
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Error exchanging code for token: ${e.message}")
+            AppLogger.error(TAG, "Trakt OAuth回调换Token失败", e, mapOf("code" to code.take(4)))
             false
         }
     }
@@ -197,8 +197,7 @@ class TraktOAuthManager @Inject constructor(
             )
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Token refresh failed: ${e.message}")
-            // 刷新失败，清除登录状态让用户重新登录
+            AppLogger.error(TAG, "Trakt Token刷新失败，需重新登录", e)
             authRepository.clearTraktAuth()
             false
         }

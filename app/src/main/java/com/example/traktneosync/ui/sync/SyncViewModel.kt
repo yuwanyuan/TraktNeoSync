@@ -1,6 +1,5 @@
 package com.example.traktneosync.ui.sync
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.traktneosync.data.AuthRepository
@@ -8,6 +7,7 @@ import com.example.traktneosync.data.SyncRepository
 import com.example.traktneosync.data.neodb.NeoDBMark
 import com.example.traktneosync.data.trakt.TraktWatchedItem
 import com.example.traktneosync.data.trakt.TraktWatchlistItem
+import com.example.traktneosync.util.AppLogger
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -208,7 +208,7 @@ class SyncViewModel @Inject constructor(
                 )
 
             } catch (e: Exception) {
-                Log.e(TAG, "Sync error: ${e.message}")
+                AppLogger.error(TAG, "同步数据加载失败", e)
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     syncError = e.message ?: "同步失败"
@@ -268,8 +268,7 @@ class SyncViewModel @Inject constructor(
                         _uiState.value = _uiState.value.copy(items = updatedItems)
                     },
                     onFailure = { error ->
-                        // 记录错误但继续
-                        Log.e(TAG, "Failed to add ${item.title}: ${error.message}")
+                        AppLogger.warn(TAG, "批量同步单项失败", error, mapOf("title" to item.title))
                     }
                 )
             }

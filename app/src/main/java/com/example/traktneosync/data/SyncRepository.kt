@@ -1,6 +1,5 @@
 package com.example.traktneosync.data
 
-import android.util.Log
 import com.example.traktneosync.data.neodb.NeoDBApiService
 import com.example.traktneosync.data.neodb.NeoDBMark
 import com.example.traktneosync.data.neodb.NeoDBMarkRequest
@@ -8,6 +7,7 @@ import com.example.traktneosync.data.trakt.TraktApiService
 import com.example.traktneosync.data.trakt.TraktIds
 import com.example.traktneosync.data.trakt.TraktWatchedItem
 import com.example.traktneosync.data.trakt.TraktWatchlistItem
+import com.example.traktneosync.util.AppLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -33,7 +33,7 @@ class SyncRepository @Inject constructor(
         return@withContext try {
             traktApi.getWatchedMovies("Bearer $token")
         } catch (e: Exception) {
-            Log.e(TAG, "Error fetching Trakt watched movies: ${e.message}")
+            AppLogger.error(TAG, "获取Trakt已观看电影失败", e, mapOf("api" to "getWatchedMovies"))
             emptyList()
         }
     }
@@ -43,7 +43,7 @@ class SyncRepository @Inject constructor(
         return@withContext try {
             traktApi.getWatchedShows("Bearer $token")
         } catch (e: Exception) {
-            Log.e(TAG, "Error fetching Trakt watched shows: ${e.message}")
+            AppLogger.error(TAG, "获取Trakt已观看剧集失败", e, mapOf("api" to "getWatchedShows"))
             emptyList()
         }
     }
@@ -53,7 +53,7 @@ class SyncRepository @Inject constructor(
         return@withContext try {
             traktApi.getMovieWatchlist("Bearer $token")
         } catch (e: Exception) {
-            Log.e(TAG, "Error fetching Trakt movie watchlist: ${e.message}")
+            AppLogger.error(TAG, "获取Trakt电影待看清单失败", e, mapOf("api" to "getMovieWatchlist"))
             emptyList()
         }
     }
@@ -63,7 +63,7 @@ class SyncRepository @Inject constructor(
         return@withContext try {
             traktApi.getShowWatchlist("Bearer $token")
         } catch (e: Exception) {
-            Log.e(TAG, "Error fetching Trakt show watchlist: ${e.message}")
+            AppLogger.error(TAG, "获取Trakt剧集待看清单失败", e, mapOf("api" to "getShowWatchlist"))
             emptyList()
         }
     }
@@ -95,7 +95,7 @@ class SyncRepository @Inject constructor(
                 if (page >= response.pages) break
                 page++
             } catch (e: Exception) {
-                Log.e(TAG, "Error fetching NeoDB shelf: ${e.message}")
+                AppLogger.error(TAG, "获取NeoDB书架失败", e, mapOf("shelf" to shelfType, "page" to page, "category" to (category ?: "all")))
                 break
             }
         }
@@ -349,7 +349,7 @@ class SyncRepository @Inject constructor(
             
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.e(TAG, "Error adding to NeoDB: ${e.message}")
+            AppLogger.error(TAG, "添加到NeoDB失败", e, mapOf("title" to traktItem.title, "type" to traktItem.type, "shelf" to shelfType))
             Result.failure(e)
         }
     }

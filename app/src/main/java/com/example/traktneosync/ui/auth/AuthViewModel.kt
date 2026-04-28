@@ -1,6 +1,6 @@
 package com.example.traktneosync.ui.auth
 
-import android.util.Log
+import com.example.traktneosync.util.AppLogger
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.traktneosync.data.AuthRepository
@@ -70,7 +70,7 @@ class AuthViewModel @Inject constructor(
             // 先注册/获取应用凭证
             val registered = neodbOAuthManager.registerApp()
             if (!registered) {
-                Log.e(TAG, "Failed to register NeoDB app")
+                AppLogger.error(TAG, "注册NeoDB应用失败")
                 _uiState.value = _uiState.value.copy(
                     neodbLoading = false,
                     neodbError = "无法注册 NeoDB 应用，请检查网络连接"
@@ -114,7 +114,7 @@ class AuthViewModel @Inject constructor(
                 tmdbApi.getMovieDetail(550)
                 _uiState.value = _uiState.value.copy(tmdbKeyTesting = false, tmdbKeyValid = true)
             } catch (e: Exception) {
-                Log.e(TAG, "TMDB key test failed: ${e.message}")
+                AppLogger.error(TAG, "TMDB Key测试失败", e)
                 _uiState.value = _uiState.value.copy(tmdbKeyTesting = false, tmdbKeyValid = false)
             } finally {
                 // 恢复 Provider 中原先保存的 Key（如果与当前测试的不同）

@@ -1,6 +1,6 @@
 package com.example.traktneosync.ui.search
 
-import android.util.Log
+import com.example.traktneosync.util.AppLogger
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.traktneosync.data.AuthRepository
@@ -92,7 +92,7 @@ class SearchViewModel @Inject constructor(
                 )
 
             } catch (e: Exception) {
-                Log.e(TAG, "Search error: ${e.message}")
+                AppLogger.error(TAG, "搜索失败", e)
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     error = e.message ?: "搜索失败"
@@ -127,7 +127,7 @@ class SearchViewModel @Inject constructor(
                 )
 
             } catch (e: Exception) {
-                Log.e(TAG, "Add to shelf error: ${e.message}")
+                AppLogger.error(TAG, "添加到书架失败", e)
                 _uiState.value = _uiState.value.copy(
                     error = "添加失败: ${e.message}"
                 )
@@ -203,7 +203,7 @@ class SearchViewModel @Inject constructor(
                     addedUuids = _uiState.value.addedUuids + entry.uuid
                 )
             } catch (e: Exception) {
-                Log.e(TAG, "Submit rating error: ${e.message}")
+                AppLogger.error(TAG, "提交评分失败", e)
                 _uiState.value = _uiState.value.copy(
                     isSubmittingRating = false,
                     ratingError = e.message ?: "提交失败"
@@ -244,7 +244,7 @@ class SearchViewModel @Inject constructor(
                 entry
             }
         } catch (e: Exception) {
-            Log.w(TAG, "TMDB fetch failed for ${entry.displayTitle}: ${e.message}")
+            AppLogger.warn(TAG, "TMDB信息获取失败", e, mapOf("title" to entry.displayTitle))
             entry
         }
     }

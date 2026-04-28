@@ -1,6 +1,5 @@
 package com.example.traktneosync.ui.shows
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.traktneosync.data.SyncRepository
@@ -62,7 +61,7 @@ class ShowsViewModel @Inject constructor(
 
             // 如果已有数据且不是强制刷新，直接返回
             if (!force && currentItems.isNotEmpty()) {
-                AppLogger.log("ShowsViewModel: tab=$status 已有 ${currentItems.size} 条数据，跳过加载")
+                AppLogger.debug(TAG, "跳过加载: 已有数据", mapOf("tab" to status, "count" to currentItems.size))
                 return@launch
             }
 
@@ -70,13 +69,13 @@ class ShowsViewModel @Inject constructor(
             val cached = try {
                 cacheDao.getCachedItems("show", status).map { it.toShowItem() }
             } catch (e: Exception) {
-                AppLogger.log("ShowsViewModel: 读取缓存失败", e)
+                AppLogger.error(TAG, "读取缓存失败", e)
                 emptyList()
             }
 
             if (cached.isNotEmpty()) {
                 _uiState.value = _uiState.value.withItems(_uiState.value.selectedTab, cached, isLoading = true)
-                AppLogger.log("ShowsViewModel: 从缓存加载 ${cached.size} 条剧集, tab=$status")
+                AppLogger.debug(TAG, "从缓存加载剧集", mapOf("count" to cached.size, "tab" to status))
             } else {
                 _uiState.value = _uiState.value.copy(isLoading = true)
             }
@@ -111,7 +110,7 @@ class ShowsViewModel @Inject constructor(
                         }
                     }.filterNotNull()
                 }
-                AppLogger.log("ShowsViewModel: 从Trakt获取 ${rawItems.size} 条剧集数据, tab=$status")
+                AppLogger.info(TAG, "从Trakt获取剧集数据", mapOf("count" to rawItems.size, "tab" to status))
 
                 // 按时间降序排序
                 val sorted = rawItems.sortedByDescending { item ->
@@ -139,20 +138,19 @@ class ShowsViewModel @Inject constructor(
                 }
                 val result = deferredList.awaitAll()
                 val withPoster = result.count { it.posterUrl != null }
-                AppLogger.log("ShowsViewModel: 海报加载完成 $withPoster/${result.size}")
+                AppLogger.debug(TAG, "海报加载完成", mapOf("withPoster" to withPoster, "total" to result.size))
 
                 // 写入缓存
                 try {
                     cacheDao.replaceItems("show", status, result.map { it.toEntity("show", status) })
-                    AppLogger.log("ShowsViewModel: 已写入缓存 ${result.size} 条")
+                    AppLogger.debug(TAG, "已写入缓存", mapOf("count" to result.size))
                 } catch (e: Exception) {
-                    AppLogger.log("ShowsViewModel: 写入缓存失败", e)
+                    AppLogger.error(TAG, "写入缓存失败", e)
                 }
 
                 result
             } catch (e: Exception) {
-                Log.e(TAG, "Error loading shows: ${e.message}")
-                AppLogger.log("ShowsViewModel: 加载剧集列表失败", e)
+                AppLogger.error(TAG, "加载剧集列表失败", e)
                 if (cached.isNotEmpty()) {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
@@ -194,17 +192,16 @@ class ShowsViewModel @Inject constructor(
             try {
                 cacheDao.insertPosters(listOf(PosterCacheEntity(tmdbId = tmdbId, posterPath = path)))
             } catch (e: Exception) {
-                AppLogger.log("ShowsViewModel: 写入海报缓存失败 tmdbId=$tmdbId", e)
+                AppLogger.warn(TAG, "写入海报缓存失败", e, mapOf("tmdbId" to tmdbId))
             }
             val posterUrl = path?.let { "https://image.tmdb.org/t/p/w200$it" }
-            AppLogger.log("ShowsViewModel: TMDB中文标题 tmdbId=$tmdbId, title=$chineseTitle")
+            AppLogger.debug(TAG, "TMDB中文标题", mapOf("tmdbId" to tmdbId, "title" to chineseTitle))
             TmdbDetailResult(posterUrl = posterUrl, chineseTitle = chineseTitle)
         } catch (e: Exception) {
-            Log.w(TAG, "TMDB fetch failed for id=$tmdbId: ${e.message}")
-            AppLogger.log("ShowsViewModel: TMDB详情获取失败 tmdbId=$tmdbId, ${e.message}")
+            AppLogger.warn(TAG, "TMDB详情获取失败", e, mapOf("tmdbId" to tmdbId))
             try {
                 cacheDao.insertPosters(listOf(PosterCacheEntity(tmdbId = tmdbId, posterPath = null)))
-            } catch (e: Exception) { AppLogger.log("ShowsViewModel: 写入空缓存失败 tmdbId=$tmdbId", e) }
+            } catch (e: Exception) { AppLogger.warn(TAG, "写入空缓存失败", e, mapOf("tmdbId" to tmdbId)) }
             val fallbackPosterUrl = cachedPoster?.posterPath?.let { "https://image.tmdb.org/t/p/w200$it" }
             TmdbDetailResult(posterUrl = fallbackPosterUrl, chineseTitle = null)
         }

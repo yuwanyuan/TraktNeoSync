@@ -7,7 +7,6 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -178,11 +177,10 @@ class MainActivity : ComponentActivity() {
 
     private fun handleDeepLink(uri: Uri?) {
         if (uri == null) return
-        Log.d(TAG, "Handling deep link: $uri")
+        AppLogger.debug(TAG, "处理Deep Link", mapOf("uri" to uri.toString()))
 
-        // 确保注入已完成
         if (!::traktOAuthManager.isInitialized || !::neodbOAuthManager.isInitialized) {
-            Log.w(TAG, "OAuth managers not initialized yet, skipping deep link")
+            AppLogger.warn(TAG, "OAuth管理器未初始化，跳过Deep Link")
             return
         }
 
@@ -190,13 +188,13 @@ class MainActivity : ComponentActivity() {
             "trakt" -> {
                 lifecycleScope.launch(Dispatchers.IO) {
                     val success = traktOAuthManager.handleCallback(uri)
-                    Log.d(TAG, "Trakt OAuth callback: success=$success")
+                    AppLogger.info(TAG, "Trakt OAuth回调完成", mapOf("success" to success))
                 }
             }
             "neodb" -> {
                 lifecycleScope.launch(Dispatchers.IO) {
                     val success = neodbOAuthManager.handleCallback(uri)
-                    Log.d(TAG, "NeoDB OAuth callback: success=$success")
+                    AppLogger.info(TAG, "NeoDB OAuth回调完成", mapOf("success" to success))
                 }
             }
         }

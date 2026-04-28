@@ -1,6 +1,6 @@
 package com.example.traktneosync.ui.neodb
 
-import android.util.Log
+import com.example.traktneosync.util.AppLogger
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.traktneosync.data.AuthRepository
@@ -53,7 +53,7 @@ class NeoDBViewModel @Inject constructor(
                     loadShelf(_uiState.value.selectedShelf)
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "initialLoad error: ${e.message}")
+                AppLogger.error(TAG, "初始化加载失败", e)
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     error = e.message ?: "加载失败"
@@ -81,7 +81,7 @@ class NeoDBViewModel @Inject constructor(
                     error = null
                 )
             } catch (e: Exception) {
-                Log.e(TAG, "Load shelf error: ${e.message}")
+                AppLogger.error(TAG, "加载书架失败", e, mapOf("shelf" to shelf.apiValue))
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     error = e.message ?: "加载失败"

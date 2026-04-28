@@ -3,9 +3,9 @@ package com.example.traktneosync.data.neodb
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.util.Log
 import com.example.traktneosync.BuildConfig
 import com.example.traktneosync.data.AuthRepository
+import com.example.traktneosync.util.AppLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -68,7 +68,7 @@ class NeoDBOAuthManager @Inject constructor(
             
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Error registering app: ${e.message}")
+            AppLogger.error(TAG, "注册NeoDB应用失败", e, mapOf("instance" to instance))
             false
         }
     }
@@ -120,7 +120,7 @@ class NeoDBOAuthManager @Inject constructor(
             
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Error exchanging code for token: ${e.message}")
+            AppLogger.error(TAG, "NeoDB OAuth回调换Token失败", e, mapOf("instance" to currentInstance))
             false
         }
     }
@@ -174,7 +174,7 @@ class NeoDBOAuthManager @Inject constructor(
             )
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Token refresh failed: ${e.message}")
+            AppLogger.error(TAG, "NeoDB Token刷新失败，需重新登录", e, mapOf("instance" to currentInstance))
             authRepository.clearNeoDBAuth()
             false
         }

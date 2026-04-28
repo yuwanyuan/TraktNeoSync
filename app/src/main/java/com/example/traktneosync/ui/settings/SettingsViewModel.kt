@@ -1,7 +1,6 @@
 package com.example.traktneosync.ui.settings
 
 import android.content.Context
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.traktneosync.data.AuthRepository
@@ -11,6 +10,7 @@ import com.example.traktneosync.data.tmdb.TmdbApiKeyProvider
 import com.example.traktneosync.data.tmdb.TmdbApiService
 import com.example.traktneosync.data.trakt.TraktOAuthManager
 import com.example.traktneosync.util.AppLogger
+import com.example.traktneosync.util.LogLevel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,7 +41,6 @@ class SettingsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            // 初始化缓存大小
             refreshCacheSize()
 
             combine(
@@ -107,7 +106,6 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    // ========== Trakt ==========
     fun connectTrakt() {
         traktOAuthManager.openAuthorizationInBrowser()
     }
@@ -118,13 +116,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    // ========== NeoDB ==========
     fun connectNeoDB() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(neodbLoading = true, neodbError = null)
             val registered = neodbOAuthManager.registerApp()
             if (!registered) {
-                Log.e(TAG, "Failed to register NeoDB app")
+                AppLogger.error(TAG, "注册NeoDB应用失败")
                 _uiState.value = _uiState.value.copy(
                     neodbLoading = false,
                     neodbError = "无法注册 NeoDB 应用，请检查网络连接"
@@ -146,7 +143,6 @@ class SettingsViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(neodbError = null)
     }
 
-    // ========== TMDB Key ==========
     fun saveTmdbApiKey(key: String) {
         viewModelScope.launch {
             authRepository.setTmdbApiKey(key)
@@ -167,7 +163,7 @@ class SettingsViewModel @Inject constructor(
                 tmdbApi.getMovieDetail(550)
                 _uiState.value = _uiState.value.copy(tmdbKeyTesting = false, tmdbKeyValid = true)
             } catch (e: Exception) {
-                Log.e(TAG, "TMDB key test failed: ${e.message}")
+                AppLogger.error(TAG, "TMDB Key测试失败", e)
                 _uiState.value = _uiState.value.copy(tmdbKeyTesting = false, tmdbKeyValid = false)
             } finally {
                 if (originalKey != trimmed) {
@@ -177,32 +173,34 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    // ========== 首选语言 ==========
     fun setPreferredLanguage(language: String) {
         viewModelScope.launch {
             authRepository.setPreferredLanguage(language)
-            AppLogger.log("SettingsViewModel: 首选语言切换为 $language")
+            AppLogger.info(TAG, "首选语言切换为 $language")
         }
     }
 
     fun setDarkTheme(mode: String) {
         viewModelScope.launch {
             authRepository.setDarkTheme(mode)
-            AppLogger.log("SettingsViewModel: 深色模式切换为 $mode")
+            AppLogger.info(TAG, "深色模式切换为 $mode")
         }
     }
 
-    // ========== 清理缓存 ==========
+    fun setLogLevel(level: LogLevel) {
+        AppLogger.setLogLevel(level)
+        AppLogger.info(TAG, "日志级别切换为 ${level.name}")
+    }
+
     fun clearCache(onDone: () -> Unit) {
         viewModelScope.launch {
             try {
                 cacheDao.clearAllCache()
                 refreshCacheSize()
-                AppLogger.log("SettingsViewModel: 用户手动清理了全部缓存")
+                AppLogger.info(TAG, "用户手动清理了全部缓存")
                 onDone()
             } catch (e: Exception) {
-                Log.e(TAG, "Clear cache failed: ${e.message}")
-                AppLogger.log("SettingsViewModel: 清理缓存失败", e)
+                AppLogger.error(TAG, "清理缓存失败", e)
             }
         }
     }

@@ -1,6 +1,6 @@
 package com.example.traktneosync.ui.detail
 
-import android.util.Log
+import com.example.traktneosync.util.AppLogger
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.traktneosync.data.AuthRepository
@@ -90,7 +90,7 @@ class DetailViewModel @Inject constructor(
 
                         if (!cnTitle.isNullOrBlank()) {
                             searchTitle = cnTitle
-                            Log.d(TAG, "Using TMDB CN title for NeoDB search: $searchTitle")
+                            AppLogger.debug(TAG, "使用TMDB中文标题搜索NeoDB", mapOf("searchTitle" to searchTitle))
                         }
 
                         // 同时获取 TMDB 的准确年份
@@ -106,7 +106,7 @@ class DetailViewModel @Inject constructor(
                             }
                         }
                     } catch (e: Exception) {
-                        Log.w(TAG, "Failed to get TMDB alternative title: ${e.message}")
+                        AppLogger.warn(TAG, "获取TMDB备选标题失败", e)
                     }
                 }
 
@@ -149,7 +149,7 @@ class DetailViewModel @Inject constructor(
                 // 3. 加载第一页评论
                 loadPostsPage(token, bestMatch.uuid, 1, reset = true)
             } catch (e: Exception) {
-                Log.e(TAG, "Error loading NeoDB reviews: ${e.message}", e)
+                AppLogger.error(TAG, "加载NeoDB评论失败", e)
                 _uiState.update { it.copy(isLoadingReviews = false, reviewError = e.message) }
             }
         }
@@ -200,7 +200,7 @@ class DetailViewModel @Inject constructor(
                     )
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Error loading TMDB details: ${e.message}", e)
+                AppLogger.error(TAG, "加载TMDB详情失败", e)
                 _uiState.update { it.copy(isLoadingDetails = false, detailsError = e.message) }
             }
         }
@@ -238,7 +238,7 @@ class DetailViewModel @Inject constructor(
                 val mark = neoDBApi.getItemMark("Bearer $token", uuid)
                 _uiState.update { it.copy(currentMark = mark, isLoadingMarkStatus = false) }
             } catch (e: Exception) {
-                Log.d(TAG, "No existing mark found: ${e.message}")
+                AppLogger.debug(TAG, "未找到已有标记")
                 _uiState.update { it.copy(currentMark = null, isLoadingMarkStatus = false) }
             }
         }
@@ -272,7 +272,7 @@ class DetailViewModel @Inject constructor(
                 // 刷新评论和评分数据
                 refreshNeoDBData()
             } catch (e: Exception) {
-                Log.e(TAG, "Error submitting rating: ${e.message}", e)
+                AppLogger.error(TAG, "提交评分失败", e)
                 _uiState.update { it.copy(isSubmittingRating = false, ratingSubmitError = e.message) }
             }
         }
@@ -288,7 +288,7 @@ class DetailViewModel @Inject constructor(
                 // 评分数据会在用户下次进入详情页时重新加载
                 // 此处仅刷新评论即可
             } catch (e: Exception) {
-                Log.e(TAG, "Error refreshing NeoDB data: ${e.message}", e)
+                AppLogger.error(TAG, "刷新NeoDB数据失败", e)
             }
         }
     }
@@ -303,7 +303,7 @@ class DetailViewModel @Inject constructor(
                 _uiState.update { it.copy(isLoadingMore = true) }
                 loadPostsPage(token, uuid, currentPostPage + 1, reset = false)
             } catch (e: Exception) {
-                Log.e(TAG, "Error loading more reviews: ${e.message}", e)
+                AppLogger.error(TAG, "加载更多评论失败", e)
                 _uiState.update { it.copy(isLoadingMore = false) }
             }
         }
