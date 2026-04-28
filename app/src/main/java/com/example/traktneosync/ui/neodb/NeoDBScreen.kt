@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -22,6 +23,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import com.example.traktneosync.data.neodb.NeoDBEntry
 import com.example.traktneosync.data.neodb.NeoDBMark
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -29,7 +31,8 @@ import com.example.traktneosync.data.neodb.NeoDBMark
 fun NeoDBScreen(
     viewModel: NeoDBViewModel = hiltViewModel(),
     onNavigateToSync: () -> Unit = {},
-    onNavigateToDetail: (NeoDBMark) -> Unit = {}
+    onNavigateToDetail: (NeoDBMark) -> Unit = {},
+    onNavigateToEntry: (NeoDBEntry) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -40,52 +43,49 @@ fun NeoDBScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(horizontal = 16.dp)
     ) {
-        // 顶部栏：同步按钮在左上方
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            FilledTonalButton(
-                onClick = onNavigateToSync,
-                enabled = uiState.isAuthenticated
+            ScrollableTabRow(
+                selectedTabIndex = when (uiState.selectedTab) {
+                    NeoDBTab.DISCOVER -> 0
+                    is NeoDBTab.ShelfTab -> 1 + NeoDBShelf.entries.indexOf((uiState.selectedTab as NeoDBTab.ShelfTab).shelf)
+                },
+                modifier = Modifier.weight(1f),
+                edgePadding = 0.dp
             ) {
-                Icon(Icons.Default.Sync, contentDescription = null)
-                Spacer(Modifier.width(4.dp))
-                Text("同步")
-            }
-
-            if (uiState.isAuthenticated) {
-                Text(
-                    text = "${uiState.selectedShelf.label} (${uiState.marks.size})",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // 书架分类 Tab
-        TabRow(
-            selectedTabIndex = NeoDBShelf.entries.indexOf(uiState.selectedShelf)
-        ) {
-            NeoDBShelf.entries.forEach { shelf ->
                 Tab(
-                    selected = uiState.selectedShelf == shelf,
-                    onClick = { viewModel.selectShelf(shelf) },
-                    text = { Text(shelf.label) }
+                    selected = uiState.selectedTab == NeoDBTab.DISCOVER,
+                    onClick = { viewModel.selectTab(NeoDBTab.DISCOVER) },
+                    text = { Text("发现") }
+                )
+                NeoDBShelf.entries.forEach { shelf ->
+                    Tab(
+                        selected = uiState.selectedTab == NeoDBTab.ShelfTab(shelf),
+                        onClick = { viewModel.selectTab(NeoDBTab.ShelfTab(shelf)) },
+                        text = { Text(shelf.label) }
+                    )
+                }
+            }
+
+            IconButton(onClick = onNavigateToSync, enabled = uiState.isAuthenticated) {
+                Icon(
+                    Icons.Default.Sync,
+                    contentDescription = "同步",
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 内容区域
         when {
-            !uiState.isAuthenticated -> {
+            !uiState.isAuthenticated && uiState.selectedTab != NeoDBTab.DISCOVER -> {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -112,48 +112,174 @@ fun NeoDBScreen(
                     verticalArrangement = Arrangement.Center
                 ) {
                     Text(
-                        text = "加载失败",
-                        style = MaterialTheme.typography.titleMedium,
+                        text = uiState.error ?: "加载失败",
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.error
                     )
-                    Text(
-                        text = uiState.error ?: "未知错误",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     Button(onClick = { viewModel.refresh() }) {
                         Text("重试")
                     }
                 }
             }
-            uiState.marks.isEmpty() -> {
+            uiState.selectedTab == NeoDBTab.DISCOVER -> {
+                DiscoverContent(
+                    movies = uiState.trendingMovies,
+                    tv = uiState.trendingTV,
+                    onEntryClick = onNavigateToEntry
+                )
+            }
+            uiState.selectedTab is NeoDBTab.ShelfTab -> {
+                val shelf = (uiState.selectedTab as NeoDBTab.ShelfTab).shelf
+                if (uiState.marks.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "${shelf.label}列表为空",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(
+                            items = uiState.marks.withIndex().toList(),
+                            key = { (index, mark) -> mark.uuid.ifBlank { "neodb_mark_$index" } }
+                        ) { (_, mark) ->
+                            NeoDBMarkCard(
+                                mark = mark,
+                                onClick = { onNavigateToDetail(mark) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DiscoverContent(
+    movies: List<NeoDBEntry>,
+    tv: List<NeoDBEntry>,
+    onEntryClick: (NeoDBEntry) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        if (movies.isNotEmpty()) {
+            item {
+                Text(
+                    text = "热门电影",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            item {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(movies, key = { it.uuid }) { entry ->
+                        TrendingCard(
+                            entry = entry,
+                            onClick = { onEntryClick(entry) }
+                        )
+                    }
+                }
+            }
+        }
+
+        if (tv.isNotEmpty()) {
+            item {
+                Text(
+                    text = "热门剧集",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            item {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(tv, key = { it.uuid }) { entry ->
+                        TrendingCard(
+                            entry = entry,
+                            onClick = { onEntryClick(entry) }
+                        )
+                    }
+                }
+            }
+        }
+
+        if (movies.isEmpty() && tv.isEmpty()) {
+            item {
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 48.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "${uiState.selectedShelf.label}列表为空",
+                        text = "暂无热门内容",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
-            else -> {
-                LazyColumn(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+        }
+    }
+}
+
+@Composable
+private fun TrendingCard(
+    entry: NeoDBEntry,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .width(110.dp)
+            .clickable(onClick = onClick)
+    ) {
+        Column {
+            if (entry.coverImageUrl != null) {
+                AsyncImage(
+                    model = entry.coverImageUrl,
+                    contentDescription = entry.displayTitle,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(155.dp)
+                        .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(155.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center
                 ) {
-                    items(
-                        items = uiState.marks.withIndex().toList(),
-                        key = { (index, mark) -> mark.uuid.ifBlank { "neodb_mark_$index" } }
-                    ) { (_, mark) ->
-                        NeoDBMarkCard(
-                            mark = mark,
-                            onClick = { onNavigateToDetail(mark) }
-                        )
-                    }
+                    Text(
+                        text = entry.category.take(1).uppercase(),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
+            }
+            Column(modifier = Modifier.padding(8.dp)) {
+                Text(
+                    text = entry.displayTitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
@@ -177,7 +303,6 @@ private fun NeoDBMarkCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // 封面图
             if (entry.coverImageUrl != null) {
                 AsyncImage(
                     model = entry.coverImageUrl,
@@ -203,7 +328,6 @@ private fun NeoDBMarkCard(
                 }
             }
 
-            // 信息
             Column(
                 modifier = Modifier.weight(1f)
             ) {

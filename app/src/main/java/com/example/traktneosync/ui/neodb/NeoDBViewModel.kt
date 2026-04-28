@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.traktneosync.data.AuthRepository
 import com.example.traktneosync.data.neodb.NeoDBApiService
+import com.example.traktneosync.data.neodb.NeoDBEntry
 import com.example.traktneosync.data.neodb.NeoDBMark
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,30 +34,60 @@ class NeoDBViewModel @Inject constructor(
         }
     }
 
+    fun selectTab(tab: NeoDBTab) {
+        if (_uiState.value.selectedTab == tab) return
+        _uiState.value = _uiState.value.copy(selectedTab = tab)
+        when (tab) {
+            NeoDBTab.DISCOVER -> loadTrending()
+            is NeoDBTab.ShelfTab -> loadShelf(tab.shelf)
+        }
+    }
+
     fun selectShelf(shelf: NeoDBShelf) {
-        if (_uiState.value.selectedShelf == shelf && _uiState.value.marks.isNotEmpty()) return
-        _uiState.value = _uiState.value.copy(selectedShelf = shelf)
-        loadShelf(shelf)
+        selectTab(NeoDBTab.ShelfTab(shelf))
     }
 
     fun refresh() {
-        loadShelf(_uiState.value.selectedShelf)
+        when (val tab = _uiState.value.selectedTab) {
+            NeoDBTab.DISCOVER -> loadTrending()
+            is NeoDBTab.ShelfTab -> loadShelf(tab.shelf)
+        }
     }
 
     fun initialLoad() {
-        if (_uiState.value.marks.isNotEmpty() || _uiState.value.isLoading) return
+        if (_uiState.value.trending.isNotEmpty() || _uiState.value.marks.isNotEmpty() || _uiState.value.isLoading) return
         viewModelScope.launch {
             try {
                 val token = authRepository.neodbAccessToken.first()
                 _uiState.value = _uiState.value.copy(isAuthenticated = token != null)
-                if (token != null) {
-                    loadShelf(_uiState.value.selectedShelf)
-                }
+                loadTrending()
             } catch (e: Exception) {
                 AppLogger.error(TAG, "初始化加载失败", e)
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     error = e.message ?: "加载失败"
+                )
+            }
+        }
+    }
+
+    private fun loadTrending() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            try {
+                val movies = neoDBApi.getTrending("movie")
+                val tv = neoDBApi.getTrending("tv")
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    trendingMovies = movies,
+                    trendingTV = tv,
+                    error = null
+                )
+            } catch (e: Exception) {
+                AppLogger.error(TAG, "加载热门失败", e)
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = e.message ?: "加载热门失败"
                 )
             }
         }
@@ -102,10 +133,19 @@ class NeoDBViewModel @Inject constructor(
 data class NeoDBUiState(
     val isLoading: Boolean = false,
     val isAuthenticated: Boolean = false,
-    val selectedShelf: NeoDBShelf = NeoDBShelf.COMPLETE,
+    val selectedTab: NeoDBTab = NeoDBTab.DISCOVER,
+    val trendingMovies: List<NeoDBEntry> = emptyList(),
+    val trendingTV: List<NeoDBEntry> = emptyList(),
     val marks: List<NeoDBMark> = emptyList(),
     val error: String? = null
-)
+) {
+    val trending: List<NeoDBEntry> get() = trendingMovies + trendingTV
+}
+
+sealed class NeoDBTab {
+    object DISCOVER : NeoDBTab()
+    data class ShelfTab(val shelf: NeoDBShelf) : NeoDBTab()
+}
 
 enum class NeoDBShelf(val label: String, val apiValue: String) {
     COMPLETE("看过", "complete"),

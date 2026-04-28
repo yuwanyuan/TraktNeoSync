@@ -68,12 +68,14 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.traktneosync.data.AuthRepository
 import com.example.traktneosync.data.neodb.NeoDBOAuthManager
+import com.example.traktneosync.data.neodb.NeoDBEntry
 import com.example.traktneosync.data.trakt.TraktOAuthManager
 import com.example.traktneosync.ui.detail.DetailScreen
 import com.example.traktneosync.ui.neodb.NeoDBScreen
 import com.example.traktneosync.ui.settings.SettingsScreen
 import com.example.traktneosync.ui.search.SearchScreen
 import com.example.traktneosync.ui.sync.SyncScreen
+import com.example.traktneosync.ui.sync.SyncListItem
 import com.example.traktneosync.ui.trakt.TraktScreen
 import com.example.traktneosync.ui.theme.TraktNeoSyncTheme
 import com.example.traktneosync.util.AppLogger
@@ -269,8 +271,8 @@ fun TraktNeoSyncApp(
         val navController = rememberNavController()
         val navItems = listOf(
             BottomNavItem.Trakt,
-            BottomNavItem.Search,
             BottomNavItem.NeoDB,
+            BottomNavItem.Search,
             BottomNavItem.Settings
         )
         val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
@@ -370,11 +372,34 @@ fun TraktNeoSyncApp(
                             navController.navigate(
                                 "detail/$type/$encodedTitle/0/_null_/_null_/$encodedPoster/0"
                             )
+                        },
+                        onNavigateToEntry = { entry ->
+                            val encodedTitle = java.net.URLEncoder.encode(entry.displayTitle, "UTF-8")
+                            val encodedPoster = java.net.URLEncoder.encode(entry.coverImageUrl ?: "_null_", "UTF-8")
+                            val type = when (entry.category) {
+                                "movie" -> "movie"
+                                "tv" -> "show"
+                                else -> "movie"
+                            }
+                            navController.navigate(
+                                "detail/$type/$encodedTitle/0/_null_/_null_/$encodedPoster/0"
+                            )
                         }
                     )
                 }
                 composable("sync") {
-                    SyncScreen()
+                    SyncScreen(
+                        onNavigateToDetail = { item ->
+                            val encodedTitle = java.net.URLEncoder.encode(item.title, "UTF-8")
+                            val encodedPoster = java.net.URLEncoder.encode(item.posterUrl ?: "_null_", "UTF-8")
+                            val type = if (item.type == "电影") "movie" else "show"
+                            val imdbId = item.traktItem.ids.imdb?.takeIf { it.isNotBlank() } ?: "_null_"
+                            val tmdbId = item.traktItem.ids.tmdb ?: 0
+                            navController.navigate(
+                                "detail/$type/$encodedTitle/${item.year ?: 0}/$imdbId/$tmdbId/$encodedPoster/0"
+                            )
+                        }
+                    )
                 }
                 composable(BottomNavItem.Search.route) {
                     SearchScreen(

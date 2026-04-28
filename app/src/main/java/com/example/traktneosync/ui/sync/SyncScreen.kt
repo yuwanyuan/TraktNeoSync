@@ -31,7 +31,8 @@ import coil.compose.AsyncImage
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SyncScreen(
-    viewModel: SyncViewModel = hiltViewModel()
+    viewModel: SyncViewModel = hiltViewModel(),
+    onNavigateToDetail: (SyncListItem) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -108,7 +109,8 @@ fun SyncScreen(
                         isSelectionMode = uiState.isSelectionMode,
                         onToggleSelect = { viewModel.toggleSelect(item.uuid) },
                         onEnterSelectionMode = { viewModel.enterSelectionMode() },
-                        onSyncSingle = { viewModel.syncSingle(item) }
+                        onSyncSingle = { viewModel.syncSingle(item) },
+                        onClick = { onNavigateToDetail(item) }
                     )
                 }
             }
@@ -303,7 +305,8 @@ private fun SyncItemCard(
     isSelectionMode: Boolean,
     onToggleSelect: () -> Unit,
     onEnterSelectionMode: () -> Unit,
-    onSyncSingle: () -> Unit
+    onSyncSingle: () -> Unit,
+    onClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -312,6 +315,8 @@ private fun SyncItemCard(
                 onClick = {
                     if (isSelectionMode) {
                         onToggleSelect()
+                    } else {
+                        onClick()
                     }
                 },
                 onLongClick = {
