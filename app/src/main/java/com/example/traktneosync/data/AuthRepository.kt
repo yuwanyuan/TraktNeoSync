@@ -21,9 +21,12 @@ class AuthRepository @Inject constructor(
     private object Keys {
         val TRAKT_ACCESS_TOKEN = stringPreferencesKey("trakt_access_token")
         val TRAKT_REFRESH_TOKEN = stringPreferencesKey("trakt_refresh_token")
+        val TRAKT_TOKEN_EXPIRES_AT = stringPreferencesKey("trakt_token_expires_at")
         val TRAKT_USER = stringPreferencesKey("trakt_user")
         
         val NEODB_ACCESS_TOKEN = stringPreferencesKey("neodb_access_token")
+        val NEODB_REFRESH_TOKEN = stringPreferencesKey("neodb_refresh_token")
+        val NEODB_TOKEN_EXPIRES_AT = stringPreferencesKey("neodb_token_expires_at")
         val NEODB_INSTANCE = stringPreferencesKey("neodb_instance")
         val NEODB_USER = stringPreferencesKey("neodb_user")
         
@@ -45,20 +48,30 @@ class AuthRepository @Inject constructor(
     
     val traktAccessToken: Flow<String?> = dataStore.data.map { it[Keys.TRAKT_ACCESS_TOKEN] }
     val traktRefreshToken: Flow<String?> = dataStore.data.map { it[Keys.TRAKT_REFRESH_TOKEN] }
+    val traktTokenExpiresAt: Flow<Long?> = dataStore.data.map { it[Keys.TRAKT_TOKEN_EXPIRES_AT]?.toLong() }
     val traktUser: Flow<String?> = dataStore.data.map { it[Keys.TRAKT_USER] }
-    
-    suspend fun setTraktAuth(accessToken: String, refreshToken: String, user: String) {
+
+    suspend fun setTraktAuth(accessToken: String, refreshToken: String, user: String, expiresIn: Long = 0L) {
         dataStore.edit { prefs ->
             prefs[Keys.TRAKT_ACCESS_TOKEN] = accessToken
             prefs[Keys.TRAKT_REFRESH_TOKEN] = refreshToken
+            prefs[Keys.TRAKT_TOKEN_EXPIRES_AT] = (System.currentTimeMillis() + expiresIn * 1000).toString()
             prefs[Keys.TRAKT_USER] = user
         }
     }
-    
+
+    suspend fun updateTraktAccessToken(accessToken: String, expiresIn: Long) {
+        dataStore.edit { prefs ->
+            prefs[Keys.TRAKT_ACCESS_TOKEN] = accessToken
+            prefs[Keys.TRAKT_TOKEN_EXPIRES_AT] = (System.currentTimeMillis() + expiresIn * 1000).toString()
+        }
+    }
+
     suspend fun clearTraktAuth() {
         dataStore.edit { prefs ->
             prefs.remove(Keys.TRAKT_ACCESS_TOKEN)
             prefs.remove(Keys.TRAKT_REFRESH_TOKEN)
+            prefs.remove(Keys.TRAKT_TOKEN_EXPIRES_AT)
             prefs.remove(Keys.TRAKT_USER)
         }
     }
@@ -66,20 +79,35 @@ class AuthRepository @Inject constructor(
     // ========== NeoDB Auth ==========
     
     val neodbAccessToken: Flow<String?> = dataStore.data.map { it[Keys.NEODB_ACCESS_TOKEN] }
+    val neodbRefreshToken: Flow<String?> = dataStore.data.map { it[Keys.NEODB_REFRESH_TOKEN] }
+    val neodbTokenExpiresAt: Flow<Long?> = dataStore.data.map { it[Keys.NEODB_TOKEN_EXPIRES_AT]?.toLong() }
     val neodbInstance: Flow<String?> = dataStore.data.map { it[Keys.NEODB_INSTANCE] }
     val neodbUser: Flow<String?> = dataStore.data.map { it[Keys.NEODB_USER] }
-    
-    suspend fun setNeoDBAuth(accessToken: String, instance: String, user: String) {
+
+    suspend fun setNeoDBAuth(accessToken: String, instance: String, user: String, refreshToken: String? = null, expiresIn: Long = 0L) {
         dataStore.edit { prefs ->
             prefs[Keys.NEODB_ACCESS_TOKEN] = accessToken
             prefs[Keys.NEODB_INSTANCE] = instance
             prefs[Keys.NEODB_USER] = user
+            refreshToken?.let { prefs[Keys.NEODB_REFRESH_TOKEN] = it }
+            if (expiresIn > 0) {
+                prefs[Keys.NEODB_TOKEN_EXPIRES_AT] = (System.currentTimeMillis() + expiresIn * 1000).toString()
+            }
         }
     }
-    
+
+    suspend fun updateNeoDBAccessToken(accessToken: String, expiresIn: Long) {
+        dataStore.edit { prefs ->
+            prefs[Keys.NEODB_ACCESS_TOKEN] = accessToken
+            prefs[Keys.NEODB_TOKEN_EXPIRES_AT] = (System.currentTimeMillis() + expiresIn * 1000).toString()
+        }
+    }
+
     suspend fun clearNeoDBAuth() {
         dataStore.edit { prefs ->
             prefs.remove(Keys.NEODB_ACCESS_TOKEN)
+            prefs.remove(Keys.NEODB_REFRESH_TOKEN)
+            prefs.remove(Keys.NEODB_TOKEN_EXPIRES_AT)
             prefs.remove(Keys.NEODB_INSTANCE)
             prefs.remove(Keys.NEODB_USER)
             prefs.remove(Keys.NEODB_APP_CLIENT_ID)

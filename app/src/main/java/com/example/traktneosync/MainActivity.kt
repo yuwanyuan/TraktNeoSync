@@ -156,7 +156,18 @@ class MainActivity : ComponentActivity() {
         }
 
         // 处理首次启动带 deep link 的情况
-        handleDeepLink(intent?.data)
+        // 延迟处理，确保 Hilt 注入完成
+        intent?.data?.let { uri ->
+            lifecycleScope.launch {
+                // 等待 Hilt 注入完成
+                var attempts = 0
+                while ((!::traktOAuthManager.isInitialized || !::neodbOAuthManager.isInitialized) && attempts < 50) {
+                    kotlinx.coroutines.delay(100)
+                    attempts++
+                }
+                handleDeepLink(uri)
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -168,6 +179,12 @@ class MainActivity : ComponentActivity() {
     private fun handleDeepLink(uri: Uri?) {
         if (uri == null) return
         Log.d(TAG, "Handling deep link: $uri")
+
+        // 确保注入已完成
+        if (!::traktOAuthManager.isInitialized || !::neodbOAuthManager.isInitialized) {
+            Log.w(TAG, "OAuth managers not initialized yet, skipping deep link")
+            return
+        }
 
         when (uri.host) {
             "trakt" -> {

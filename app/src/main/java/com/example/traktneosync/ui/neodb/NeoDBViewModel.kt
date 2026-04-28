@@ -46,10 +46,18 @@ class NeoDBViewModel @Inject constructor(
     fun initialLoad() {
         if (_uiState.value.marks.isNotEmpty() || _uiState.value.isLoading) return
         viewModelScope.launch {
-            val token = authRepository.neodbAccessToken.first()
-            _uiState.value = _uiState.value.copy(isAuthenticated = token != null)
-            if (token != null) {
-                loadShelf(_uiState.value.selectedShelf)
+            try {
+                val token = authRepository.neodbAccessToken.first()
+                _uiState.value = _uiState.value.copy(isAuthenticated = token != null)
+                if (token != null) {
+                    loadShelf(_uiState.value.selectedShelf)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "initialLoad error: ${e.message}")
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = e.message ?: "加载失败"
+                )
             }
         }
     }

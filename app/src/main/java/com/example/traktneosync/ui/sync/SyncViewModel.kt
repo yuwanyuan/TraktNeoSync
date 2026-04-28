@@ -67,6 +67,8 @@ class SyncViewModel @Inject constructor(
                 val neodbCompletedTV = syncRepository.getNeoDBCompletedTV()
                 val neodbWishlistMovies = syncRepository.getNeoDBWishlistMovies()
                 val neodbWishlistTV = syncRepository.getNeoDBWishlistTV()
+                val neodbProgressMovies = syncRepository.getNeoDBProgressMovies()
+                val neodbProgressTV = syncRepository.getNeoDBProgressTV()
 
                 // 3. 合并并检查状态
                 val syncItems = mutableListOf<SyncListItem>()
@@ -84,7 +86,8 @@ class SyncViewModel @Inject constructor(
                         )
                         val neodbMark = findMatchingMark(
                             traktItem,
-                            neodbCompletedMovies, neodbCompletedTV, neodbWishlistMovies, neodbWishlistTV
+                            neodbCompletedMovies, neodbCompletedTV, neodbWishlistMovies, neodbWishlistTV,
+                            neodbProgressMovies, neodbProgressTV
                         )
                         syncItems.add(
                             SyncListItem(
@@ -114,7 +117,8 @@ class SyncViewModel @Inject constructor(
                         )
                         val neodbMark = findMatchingMark(
                             traktItem,
-                            neodbCompletedMovies, neodbCompletedTV, neodbWishlistMovies, neodbWishlistTV
+                            neodbCompletedMovies, neodbCompletedTV, neodbWishlistMovies, neodbWishlistTV,
+                            neodbProgressMovies, neodbProgressTV
                         )
                         syncItems.add(
                             SyncListItem(
@@ -142,7 +146,8 @@ class SyncViewModel @Inject constructor(
                         )
                         val neodbMark = findMatchingMark(
                             traktItem,
-                            neodbCompletedMovies, neodbCompletedTV, neodbWishlistMovies, neodbWishlistTV
+                            neodbCompletedMovies, neodbCompletedTV, neodbWishlistMovies, neodbWishlistTV,
+                            neodbProgressMovies, neodbProgressTV
                         )
                         syncItems.add(
                             SyncListItem(
@@ -170,7 +175,8 @@ class SyncViewModel @Inject constructor(
                         )
                         val neodbMark = findMatchingMark(
                             traktItem,
-                            neodbCompletedMovies, neodbCompletedTV, neodbWishlistMovies, neodbWishlistTV
+                            neodbCompletedMovies, neodbCompletedTV, neodbWishlistMovies, neodbWishlistTV,
+                            neodbProgressMovies, neodbProgressTV
                         )
                         syncItems.add(
                             SyncListItem(
@@ -285,10 +291,12 @@ class SyncViewModel @Inject constructor(
         completedMovies: List<NeoDBMark>,
         completedTV: List<NeoDBMark>,
         wishlistMovies: List<NeoDBMark>,
-        wishlistTV: List<NeoDBMark>
+        wishlistTV: List<NeoDBMark>,
+        progressMovies: List<NeoDBMark> = emptyList(),
+        progressTV: List<NeoDBMark> = emptyList()
     ): NeoDBMark? {
         return syncRepository.findMatchingNeoDBMark(
-            traktItem, completedMovies, completedTV, wishlistMovies, wishlistTV
+            traktItem, completedMovies, completedTV, wishlistMovies, wishlistTV, progressMovies, progressTV
         )
     }
 }

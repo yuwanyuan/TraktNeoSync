@@ -82,7 +82,8 @@ class TraktOAuthManager @Inject constructor(
                 authRepository.setTraktAuth(
                     accessToken = tokenResponse.accessToken,
                     refreshToken = tokenResponse.refreshToken,
-                    user = userProfile.username
+                    user = userProfile.username,
+                    expiresIn = tokenResponse.expiresIn
                 )
                 
                 emit(TokenStatus.Success(userProfile.username))
@@ -142,7 +143,8 @@ class TraktOAuthManager @Inject constructor(
             authRepository.setTraktAuth(
                 accessToken = tokenResponse.accessToken,
                 refreshToken = tokenResponse.refreshToken,
-                user = userProfile.username
+                user = userProfile.username,
+                expiresIn = tokenResponse.expiresIn
             )
             
             true
@@ -168,5 +170,37 @@ class TraktOAuthManager @Inject constructor(
     
     suspend fun isAuthenticated(): Boolean {
         return authRepository.traktAccessToken.first() != null
+    }
+
+    // ========== Token 刷新 ==========
+
+    suspend fun ensureValidToken(): Boolean = withContext(Dispatchers.IO) {
+        val expiresAt = authRepository.traktTokenExpiresAt.first()
+        // 如果 token 将在 5 分钟内过期，提前刷新
+        if (expiresAt != null && System.currentTimeMillis() < expiresAt - 300_000) {
+            return@withContext true
+        }
+
+        val refreshToken = authRepository.traktRefreshToken.first()
+            ?: return@withContext false
+
+        return@withContext try {
+            val request = TraktRefreshTokenRequest(
+                refreshToken = refreshToken,
+                clientId = BuildConfig.TRAKT_CLIENT_ID,
+                clientSecret = BuildConfig.TRAKT_CLIENT_SECRET
+            )
+            val response = traktApi.refreshToken(request)
+            authRepository.updateTraktAccessToken(
+                accessToken = response.accessToken,
+                expiresIn = response.expiresIn
+            )
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Token refresh failed: ${e.message}")
+            // 刷新失败，清除登录状态让用户重新登录
+            authRepository.clearTraktAuth()
+            false
+        }
     }
 }

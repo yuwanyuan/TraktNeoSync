@@ -21,6 +21,11 @@ interface TraktApiService {
     suspend fun exchangeToken(
         @Body request: TraktTokenRequest
     ): TraktTokenResponse
+
+    @POST("oauth/token")
+    suspend fun refreshToken(
+        @Body request: TraktRefreshTokenRequest
+    ): TraktTokenResponse
     
     // ========== 观看历史 ==========
     

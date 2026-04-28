@@ -108,7 +108,9 @@ class NeoDBOAuthManager @Inject constructor(
             authRepository.setNeoDBAuth(
                 accessToken = tokenResponse.accessToken,
                 instance = currentInstance,
-                user = userProfile.displayName
+                user = userProfile.displayName,
+                refreshToken = tokenResponse.refreshToken,
+                expiresIn = 3600L // NeoDB tokens typically expire in 1 hour
             )
             
             // 如果 BuildConfig 中没有设置，保存到本地
@@ -132,9 +134,54 @@ class NeoDBOAuthManager @Inject constructor(
     suspend fun isAuthenticated(): Boolean {
         return authRepository.neodbAccessToken.first() != null
     }
-    
+
+    // ========== Token 刷新 ==========
+
+    suspend fun ensureValidToken(): Boolean = withContext(Dispatchers.IO) {
+        val expiresAt = authRepository.neodbTokenExpiresAt.first()
+        // 如果 token 将在 5 分钟内过期，提前刷新
+        if (expiresAt != null && System.currentTimeMillis() < expiresAt - 300_000) {
+            return@withContext true
+        }
+
+        val refreshToken = authRepository.neodbRefreshToken.first()
+            ?: return@withContext false
+
+        // 确保当前实例和凭证已设置
+        if (currentClientId.isEmpty()) {
+            val saved = authRepository.getNeoDBAppCredentials()
+            if (saved != null) {
+                currentClientId = saved.first
+                currentClientSecret = saved.second
+            } else if (BuildConfig.NEODB_CLIENT_ID.isNotEmpty()) {
+                currentClientId = BuildConfig.NEODB_CLIENT_ID
+                currentClientSecret = BuildConfig.NEODB_CLIENT_SECRET
+            } else {
+                return@withContext false
+            }
+        }
+
+        return@withContext try {
+            val request = NeoDBRefreshTokenRequest(
+                clientId = currentClientId,
+                clientSecret = currentClientSecret,
+                refreshToken = refreshToken
+            )
+            val response = neoDBApi.refreshToken(request)
+            authRepository.updateNeoDBAccessToken(
+                accessToken = response.accessToken,
+                expiresIn = 3600L
+            )
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Token refresh failed: ${e.message}")
+            authRepository.clearNeoDBAuth()
+            false
+        }
+    }
+
     // ========== 应用凭证管理 ==========
-    
+
     private suspend fun saveAppCredentials(instance: String, clientId: String, clientSecret: String) {
         currentInstance = instance
         currentClientId = clientId

@@ -104,13 +104,19 @@ class SyncRepository @Inject constructor(
     }
     
     // ========== 同步检查 ==========
-    
+
     data class SyncCheckResult(
         val traktItem: TraktItem,
         val neoDBMark: NeoDBMark?,
-        val isInNeoDB: Boolean
+        val isInNeoDB: Boolean,
+        val traktSource: TraktSource // 区分来源：已观看或待看
     )
-    
+
+    enum class TraktSource {
+        WATCHED,  // 已观看 → 应同步到 complete
+        WATCHLIST // 待看清单 → 应同步到 wishlist
+    }
+
     data class TraktItem(
         val title: String,
         val year: Int?,
@@ -126,12 +132,14 @@ class SyncRepository @Inject constructor(
         val traktWatchedShows = getTraktWatchedShows()
         val traktMovieWatchlist = getTraktMovieWatchlist()
         val traktShowWatchlist = getTraktShowWatchlist()
-        
+
         val neoDBCompletedMovies = getNeoDBCompletedMovies()
         val neoDBCompletedTV = getNeoDBCompletedTV()
         val neoDBWishlistMovies = getNeoDBWishlistMovies()
         val neoDBWishlistTV = getNeoDBWishlistTV()
-        
+        val neoDBProgressMovies = getNeoDBProgressMovies()
+        val neoDBProgressTV = getNeoDBProgressTV()
+
         // 转换 Trakt 已观看电影
         traktWatchedMovies.forEach { watched ->
             watched.movie?.let { movie ->
@@ -143,23 +151,26 @@ class SyncRepository @Inject constructor(
                     watchedAt = watched.lastWatchedAt,
                     plays = watched.plays
                 )
-                
+
                 val existingMark = findMatchingNeoDBMark(
-                    traktItem, 
+                    traktItem,
                     neoDBCompletedMovies,
                     neoDBCompletedTV,
                     neoDBWishlistMovies,
-                    neoDBWishlistTV
+                    neoDBWishlistTV,
+                    neoDBProgressMovies,
+                    neoDBProgressTV
                 )
-                
+
                 emit(SyncCheckResult(
                     traktItem = traktItem,
                     neoDBMark = existingMark,
-                    isInNeoDB = existingMark != null
+                    isInNeoDB = existingMark != null,
+                    traktSource = TraktSource.WATCHED
                 ))
             }
         }
-        
+
         // 转换 Trakt 已观看剧集
         traktWatchedShows.forEach { watched ->
             watched.show?.let { show ->
@@ -171,23 +182,26 @@ class SyncRepository @Inject constructor(
                     watchedAt = watched.lastWatchedAt,
                     plays = watched.plays
                 )
-                
+
                 val existingMark = findMatchingNeoDBMark(
                     traktItem,
                     neoDBCompletedMovies,
                     neoDBCompletedTV,
                     neoDBWishlistMovies,
-                    neoDBWishlistTV
+                    neoDBWishlistTV,
+                    neoDBProgressMovies,
+                    neoDBProgressTV
                 )
-                
+
                 emit(SyncCheckResult(
                     traktItem = traktItem,
                     neoDBMark = existingMark,
-                    isInNeoDB = existingMark != null
+                    isInNeoDB = existingMark != null,
+                    traktSource = TraktSource.WATCHED
                 ))
             }
         }
-        
+
         // 转换 Trakt 待看清单
         traktMovieWatchlist.forEach { item ->
             item.movie?.let { movie ->
@@ -197,23 +211,26 @@ class SyncRepository @Inject constructor(
                     type = "movie",
                     ids = movie.ids
                 )
-                
+
                 val existingMark = findMatchingNeoDBMark(
                     traktItem,
                     neoDBCompletedMovies,
                     neoDBCompletedTV,
                     neoDBWishlistMovies,
-                    neoDBWishlistTV
+                    neoDBWishlistTV,
+                    neoDBProgressMovies,
+                    neoDBProgressTV
                 )
-                
+
                 emit(SyncCheckResult(
                     traktItem = traktItem,
                     neoDBMark = existingMark,
-                    isInNeoDB = existingMark != null
+                    isInNeoDB = existingMark != null,
+                    traktSource = TraktSource.WATCHLIST
                 ))
             }
         }
-        
+
         traktShowWatchlist.forEach { item ->
             item.show?.let { show ->
                 val traktItem = TraktItem(
@@ -222,19 +239,22 @@ class SyncRepository @Inject constructor(
                     type = "show",
                     ids = show.ids
                 )
-                
+
                 val existingMark = findMatchingNeoDBMark(
                     traktItem,
                     neoDBCompletedMovies,
                     neoDBCompletedTV,
                     neoDBWishlistMovies,
-                    neoDBWishlistTV
+                    neoDBWishlistTV,
+                    neoDBProgressMovies,
+                    neoDBProgressTV
                 )
-                
+
                 emit(SyncCheckResult(
                     traktItem = traktItem,
                     neoDBMark = existingMark,
-                    isInNeoDB = existingMark != null
+                    isInNeoDB = existingMark != null,
+                    traktSource = TraktSource.WATCHLIST
                 ))
             }
         }
@@ -245,9 +265,11 @@ class SyncRepository @Inject constructor(
         completedMovies: List<NeoDBMark>,
         completedTV: List<NeoDBMark>,
         wishlistMovies: List<NeoDBMark>,
-        wishlistTV: List<NeoDBMark>
+        wishlistTV: List<NeoDBMark>,
+        progressMovies: List<NeoDBMark> = emptyList(),
+        progressTV: List<NeoDBMark> = emptyList()
     ): NeoDBMark? {
-        val allNeoDBMarks = completedMovies + completedTV + wishlistMovies + wishlistTV
+        val allNeoDBMarks = completedMovies + completedTV + wishlistMovies + wishlistTV + progressMovies + progressTV
 
         // 优先用 TMDB ID 匹配（最稳定）
         traktItem.ids.tmdb?.let { tmdbId ->
@@ -333,14 +355,18 @@ class SyncRepository @Inject constructor(
     }
     
     // ========== 批量同步 ==========
-    
+
     suspend fun syncAllWatchedToNeoDB(): SyncProgress {
         val results = mutableListOf<SyncResult>()
-        
+
         checkSyncStatus().collect { check ->
             if (!check.isInNeoDB) {
-                // 已观看但未在 NeoDB 标记，自动添加为 "complete"
-                val result = addToNeoDB(check.traktItem, "complete")
+                // 根据来源选择正确的书架类型
+                val shelfType = when (check.traktSource) {
+                    TraktSource.WATCHED -> "complete"
+                    TraktSource.WATCHLIST -> "wishlist"
+                }
+                val result = addToNeoDB(check.traktItem, shelfType)
                 results.add(SyncResult(
                     traktItem = check.traktItem,
                     success = result.isSuccess,
@@ -348,7 +374,7 @@ class SyncRepository @Inject constructor(
                 ))
             }
         }
-        
+
         return SyncProgress(
             total = results.size,
             success = results.count { it.success },

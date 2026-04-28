@@ -21,6 +21,11 @@ interface NeoDBApiService {
     suspend fun exchangeToken(
         @Body request: NeoDBTokenRequest
     ): NeoDBTokenResponse
+
+    @POST("oauth/token")
+    suspend fun refreshToken(
+        @Body request: NeoDBRefreshTokenRequest
+    ): NeoDBTokenResponse
     
     // ========== 用户资料 ==========
     

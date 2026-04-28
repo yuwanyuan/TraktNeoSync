@@ -77,7 +77,8 @@ object AppModule {
                 val original = chain.request()
                 val url = original.url.toString()
                 // Dynamic base URL rewrite for custom NeoDB instances
-                val newUrl = if (url.startsWith(defaultBase)) {
+                // Exclude api.neodb.app which is a separate public API
+                val newUrl = if (url.startsWith(defaultBase) && !url.contains("api.neodb.app")) {
                     url.replaceFirst(defaultBase, baseUrlProvider.baseUrl.let {
                         if (!it.endsWith("/")) "$it/" else it
                     })
@@ -139,7 +140,8 @@ object AppModule {
         return OkHttpClient.Builder()
             .addInterceptor(logging)
             .addInterceptor(Interceptor { chain ->
-                val apiKey = keyProvider.apiKey.takeIf { it.isNotEmpty() } ?: ""
+                val apiKey = keyProvider.apiKey.takeIf { it.isNotEmpty() }
+                    ?: throw IllegalStateException("TMDB API Key is not set")
                 val language = langProvider.language.takeIf { it.isNotEmpty() } ?: "zh-CN"
                 val original = chain.request()
                 val url = original.url.newBuilder()

@@ -24,6 +24,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.example.traktneosync.data.neodb.NeoDBMark
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NeoDBScreen(
     viewModel: NeoDBViewModel = hiltViewModel(),
@@ -32,7 +33,7 @@ fun NeoDBScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    LaunchedEffect(viewModel) {
+    LaunchedEffect(Unit) {
         viewModel.initialLoad()
     }
 
@@ -68,9 +69,8 @@ fun NeoDBScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         // 书架分类 Tab
-        ScrollableTabRow(
-            selectedTabIndex = NeoDBShelf.entries.indexOf(uiState.selectedShelf),
-            edgePadding = 0.dp
+        TabRow(
+            selectedTabIndex = NeoDBShelf.entries.indexOf(uiState.selectedShelf)
         ) {
             NeoDBShelf.entries.forEach { shelf ->
                 Tab(

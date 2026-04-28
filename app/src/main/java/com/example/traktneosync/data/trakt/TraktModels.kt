@@ -73,6 +73,14 @@ data class TraktTokenRequest(
     @SerializedName("grant_type") val grantType: String = "authorization_code"
 )
 
+data class TraktRefreshTokenRequest(
+    @SerializedName("refresh_token") val refreshToken: String,
+    @SerializedName("client_id") val clientId: String,
+    @SerializedName("client_secret") val clientSecret: String,
+    @SerializedName("redirect_uri") val redirectUri: String = "traktneosync://trakt",
+    @SerializedName("grant_type") val grantType: String = "refresh_token"
+)
+
 data class TraktTokenResponse(
     @SerializedName("access_token") val accessToken: String = "",
     @SerializedName("token_type") val tokenType: String = "",
