@@ -30,7 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import coil.compose.AsyncImage
+import coil.compose.rememberAsyncImagePainter
 import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.Instant
@@ -117,9 +117,10 @@ fun ShowsScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(
-                            items = pageItems,
-                            key = { it.tmdbId ?: it.hashCode() }
-                        ) { item ->
+                            count = pageItems.size,
+                            key = { index -> "s${page}_$index" }
+                        ) { index ->
+                            val item = pageItems[index]
                             ShowCard(
                                 item = item,
                                 onClick = { onNavigateToDetail(item) }
@@ -152,8 +153,9 @@ private fun ShowCard(
         ) {
             // 封面图片
             if (item.posterUrl != null) {
-                AsyncImage(
-                    model = item.posterUrl,
+                val painter = rememberAsyncImagePainter(model = item.posterUrl)
+                androidx.compose.foundation.Image(
+                    painter = painter,
                     contentDescription = item.title,
                     modifier = Modifier
                         .size(width = 60.dp, height = 80.dp)
