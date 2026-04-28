@@ -1,5 +1,6 @@
 package com.example.traktneosync.ui.trakt
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,16 +9,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -27,15 +30,31 @@ import com.example.traktneosync.ui.movies.MovieItem
 import com.example.traktneosync.ui.movies.MoviesScreen
 import com.example.traktneosync.ui.shows.ShowItem
 import com.example.traktneosync.ui.shows.ShowsScreen
+import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TraktScreen(
     snackbarHostState: SnackbarHostState? = null,
     onNavigateToMovieDetail: (MovieItem) -> Unit = {},
     onNavigateToShowDetail: (ShowItem) -> Unit = {}
 ) {
-    // 使用 rememberSaveable 替代 remember，确保状态在重组和页面切换后保留
-    var selectedType by rememberSaveable { mutableStateOf("movie") } // "movie" or "show"
+    // 0 = 电影, 1 = 剧集
+    var selectedTypeIndex by rememberSaveable { mutableStateOf(0) }
+    val pagerState = rememberPagerState(pageCount = { 2 })
+    val scope = rememberCoroutineScope()
+
+    // 同步按钮状态与 Pager 页面
+    LaunchedEffect(selectedTypeIndex) {
+        if (pagerState.currentPage != selectedTypeIndex) {
+            pagerState.animateScrollToPage(selectedTypeIndex)
+        }
+    }
+    LaunchedEffect(pagerState.currentPage) {
+        if (pagerState.currentPage != selectedTypeIndex) {
+            selectedTypeIndex = pagerState.currentPage
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -49,8 +68,7 @@ fun TraktScreen(
                 .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // 电影按钮
-            if (selectedType == "movie") {
+            if (selectedTypeIndex == 0) {
                 Button(
                     onClick = { },
                     modifier = Modifier.weight(1f)
@@ -59,15 +77,17 @@ fun TraktScreen(
                 }
             } else {
                 OutlinedButton(
-                    onClick = { selectedType = "movie" },
+                    onClick = {
+                        selectedTypeIndex = 0
+                        scope.launch { pagerState.animateScrollToPage(0) }
+                    },
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("电影")
                 }
             }
 
-            // 剧集按钮
-            if (selectedType == "show") {
+            if (selectedTypeIndex == 1) {
                 Button(
                     onClick = { },
                     modifier = Modifier.weight(1f)
@@ -76,7 +96,10 @@ fun TraktScreen(
                 }
             } else {
                 OutlinedButton(
-                    onClick = { selectedType = "show" },
+                    onClick = {
+                        selectedTypeIndex = 1
+                        scope.launch { pagerState.animateScrollToPage(1) }
+                    },
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("剧集")
@@ -86,10 +109,12 @@ fun TraktScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // 内容区域 - 使用 key 强制重组
-        key(selectedType) {
-            when (selectedType) {
-                "movie" -> MoviesScreen(
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize()
+        ) { page ->
+            when (page) {
+                0 -> MoviesScreen(
                     snackbarHostState = snackbarHostState,
                     onNavigateToDetail = onNavigateToMovieDetail
                 )
