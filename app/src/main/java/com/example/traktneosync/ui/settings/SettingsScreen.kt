@@ -31,6 +31,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.traktneosync.BuildConfig
 import com.example.traktneosync.util.LogLevel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -118,13 +119,15 @@ private fun SettingsMainScreen(
                 )
             }
 
-            item {
-                NeoDBCredentialCard(
-                    currentInstance = uiState.neodbInstance,
-                    onSave = { clientId, clientSecret, instance ->
-                        viewModel.saveNeoDBCredentials(clientId, clientSecret, instance)
-                    }
-                )
+            if (BuildConfig.NEODB_CLIENT_ID.isEmpty()) {
+                item {
+                    NeoDBCredentialCard(
+                        currentInstance = uiState.neodbInstance,
+                        onSave = { clientId, clientSecret, instance ->
+                            viewModel.saveNeoDBCredentials(clientId, clientSecret, instance)
+                        }
+                    )
+                }
             }
 
             item { SectionTitle("影视显示") }

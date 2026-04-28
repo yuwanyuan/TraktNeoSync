@@ -42,16 +42,6 @@ interface NeoDBApiService {
         @Field("grant_type") grantType: String = "refresh_token"
     ): NeoDBTokenResponse
     
-    @POST("oauth/token")
-    suspend fun exchangeToken(
-        @Body request: NeoDBTokenRequest
-    ): NeoDBTokenResponse
-
-    @POST("oauth/token")
-    suspend fun refreshToken(
-        @Body request: NeoDBRefreshTokenRequest
-    ): NeoDBTokenResponse
-    
     // ========== 用户资料 ==========
     
     @GET("api/me")

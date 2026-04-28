@@ -51,7 +51,7 @@ class AuthRepository @Inject constructor(
     
     val traktAccessToken: Flow<String?> = dataStore.data.map { it[Keys.TRAKT_ACCESS_TOKEN] }
     val traktRefreshToken: Flow<String?> = dataStore.data.map { it[Keys.TRAKT_REFRESH_TOKEN] }
-    val traktTokenExpiresAt: Flow<Long?> = dataStore.data.map { it[Keys.TRAKT_TOKEN_EXPIRES_AT]?.toLong() }
+    val traktTokenExpiresAt: Flow<Long?> = dataStore.data.map { it[Keys.TRAKT_TOKEN_EXPIRES_AT]?.toLongOrNull() }
     val traktUser: Flow<String?> = dataStore.data.map { it[Keys.TRAKT_USER] }
 
     suspend fun setTraktAuth(accessToken: String, refreshToken: String, user: String, expiresIn: Long = 0L) {
@@ -83,7 +83,7 @@ class AuthRepository @Inject constructor(
     
     val neodbAccessToken: Flow<String?> = dataStore.data.map { it[Keys.NEODB_ACCESS_TOKEN] }
     val neodbRefreshToken: Flow<String?> = dataStore.data.map { it[Keys.NEODB_REFRESH_TOKEN] }
-    val neodbTokenExpiresAt: Flow<Long?> = dataStore.data.map { it[Keys.NEODB_TOKEN_EXPIRES_AT]?.toLong() }
+    val neodbTokenExpiresAt: Flow<Long?> = dataStore.data.map { it[Keys.NEODB_TOKEN_EXPIRES_AT]?.toLongOrNull() }
     val neodbInstance: Flow<String?> = dataStore.data.map { it[Keys.NEODB_INSTANCE] }
     val neodbUser: Flow<String?> = dataStore.data.map { it[Keys.NEODB_USER] }
 
