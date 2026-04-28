@@ -40,6 +40,23 @@ interface CacheDao {
     @Query("DELETE FROM poster_cache WHERE tmdbId = :tmdbId")
     suspend fun clearPoster(tmdbId: Long)
 
+    // ========== 同步缓存 ==========
+
+    @Query("SELECT * FROM sync_cache ORDER BY cachedAt DESC")
+    suspend fun getSyncCache(): List<SyncCacheEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSyncItems(items: List<SyncCacheEntity>)
+
+    @Query("DELETE FROM sync_cache")
+    suspend fun clearSyncCache()
+
+    @Transaction
+    suspend fun replaceSyncCache(items: List<SyncCacheEntity>) {
+        clearSyncCache()
+        insertSyncItems(items)
+    }
+
     // ========== 全局清理 ==========
 
     @Query("DELETE FROM trakt_cache")
@@ -52,5 +69,6 @@ interface CacheDao {
     suspend fun clearAllCache() {
         clearAllItems()
         clearAllPosters()
+        clearSyncCache()
     }
 }

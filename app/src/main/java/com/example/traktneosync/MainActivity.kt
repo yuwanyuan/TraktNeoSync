@@ -73,7 +73,6 @@ import com.example.traktneosync.ui.detail.DetailScreen
 import com.example.traktneosync.ui.neodb.NeoDBScreen
 import com.example.traktneosync.ui.settings.SettingsScreen
 import com.example.traktneosync.ui.search.SearchScreen
-import com.example.traktneosync.ui.sync.SyncListItem
 import com.example.traktneosync.ui.sync.SyncScreen
 import com.example.traktneosync.ui.trakt.TraktScreen
 import com.example.traktneosync.ui.theme.TraktNeoSyncTheme
@@ -375,16 +374,7 @@ fun TraktNeoSyncApp(
                     )
                 }
                 composable("sync") {
-                    SyncScreen(
-                        onNavigateToDetail = { item ->
-                            val encodedTitle = java.net.URLEncoder.encode(item.title, "UTF-8")
-                            val posterUrl = item.neoDBMark?.item?.coverImageUrl ?: "_null_"
-                            val encodedPoster = java.net.URLEncoder.encode(posterUrl, "UTF-8")
-                            navController.navigate(
-                                "detail/sync/$encodedTitle/${item.year ?: 0}/_null_/_null_/$encodedPoster/0"
-                            )
-                        }
-                    )
+                    SyncScreen()
                 }
                 composable(BottomNavItem.Search.route) {
                     SearchScreen(
