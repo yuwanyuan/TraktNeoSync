@@ -27,6 +27,9 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -57,6 +60,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.traktneosync.data.AuthRepository
 import com.example.traktneosync.data.neodb.NeoDBOAuthManager
 import com.example.traktneosync.data.trakt.TraktOAuthManager
 import com.example.traktneosync.ui.detail.DetailScreen
@@ -82,6 +86,7 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var traktOAuthManager: TraktOAuthManager
     @Inject lateinit var neodbOAuthManager: NeoDBOAuthManager
+    @Inject lateinit var authRepository: AuthRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -132,7 +137,10 @@ class MainActivity : ComponentActivity() {
                     )
                 } else {
                     // 正常 UI
+                    val darkThemeMode by authRepository.darkTheme
+                        .collectAsState(initial = "system")
                     TraktNeoSyncApp(
+                        darkThemeMode = darkThemeMode ?: "system",
                         onShowDiagnostic = { showDiagnostic = true }
                     )
                 }
@@ -185,138 +193,139 @@ sealed class BottomNavItem(
 @Composable
 fun TraktNeoSyncApp(
     modifier: Modifier = Modifier,
+    darkThemeMode: String = "system",
     onShowDiagnostic: () -> Unit = {}
 ) {
-    val navController = rememberNavController()
-    val navItems = listOf(
-        BottomNavItem.Trakt,
-        BottomNavItem.Sync,
-        BottomNavItem.Search,
-        BottomNavItem.Settings
-    )
-    val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
+    TraktNeoSyncTheme(darkThemeMode = darkThemeMode) {
+        val navController = rememberNavController()
+        val navItems = listOf(
+            BottomNavItem.Trakt,
+            BottomNavItem.Search,
+            BottomNavItem.Sync,
+            BottomNavItem.Settings
+        )
+        val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        topBar = {
-            TopAppBar(
-                title = { Text("Trakt ↔ NeoDB") },
-                actions = {
-                    // 调试按钮 - 长按可进入诊断模式
-                    IconButton(onClick = onShowDiagnostic) {
-                        Icon(
-                            Icons.Default.BugReport,
-                            contentDescription = "诊断",
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+        Scaffold(
+            modifier = modifier.fillMaxSize(),
+            topBar = {
+                TopAppBar(
+                    title = { Text("Trakt ↔ NeoDB") },
+                    actions = {
+                        IconButton(onClick = onShowDiagnostic) {
+                            Icon(
+                                Icons.Default.BugReport,
+                                contentDescription = "诊断",
+                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors()
+                )
+            },
+            bottomBar = {
+                NavigationBar {
+                    val navBackStackEntry by navController.currentBackStackEntryAsState()
+                    val currentDestination = navBackStackEntry?.destination
+
+                    navItems.forEach { item ->
+                        NavigationBarItem(
+                            icon = { Icon(item.icon, contentDescription = item.title) },
+                            label = { Text(item.title) },
+                            selected = currentDestination?.hierarchy?.any { it.route == item.route } == true,
+                            onClick = {
+                                navController.navigate(item.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
                         )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors()
-            )
-        },
-        bottomBar = {
-            NavigationBar {
-                val navBackStackEntry by navController.currentBackStackEntryAsState()
-                val currentDestination = navBackStackEntry?.destination
-
-                navItems.forEach { item ->
-                    NavigationBarItem(
-                        icon = { Icon(item.icon, contentDescription = item.title) },
-                        label = { Text(item.title) },
-                        selected = currentDestination?.hierarchy?.any { it.route == item.route } == true,
-                        onClick = {
-                            navController.navigate(item.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
-                                }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
+                }
+            },
+            snackbarHost = { androidx.compose.material3.SnackbarHost(snackbarHostState) }
+        ) { innerPadding ->
+            NavHost(
+                navController = navController,
+                startDestination = BottomNavItem.Trakt.route,
+                modifier = Modifier.padding(innerPadding)
+            ) {
+                composable(BottomNavItem.Trakt.route) {
+                    TraktScreen(
+                        snackbarHostState = snackbarHostState,
+                        onNavigateToMovieDetail = { movie ->
+                            val encodedTitle = java.net.URLEncoder.encode(movie.title, "UTF-8")
+                            val encodedPoster = java.net.URLEncoder.encode(movie.posterUrl ?: "_null_", "UTF-8")
+                            val imdbId = movie.imdbId?.takeIf { it.isNotBlank() } ?: "_null_"
+                            navController.navigate(
+                                "detail/movie/$encodedTitle/${movie.year ?: 0}/$imdbId/${movie.tmdbId ?: 0}/$encodedPoster/${movie.plays}"
+                            )
+                        },
+                        onNavigateToShowDetail = { show ->
+                            val encodedTitle = java.net.URLEncoder.encode(show.title, "UTF-8")
+                            val encodedPoster = java.net.URLEncoder.encode(show.posterUrl ?: "_null_", "UTF-8")
+                            val imdbId = show.imdbId?.takeIf { it.isNotBlank() } ?: "_null_"
+                            navController.navigate(
+                                "detail/show/$encodedTitle/${show.year ?: 0}/$imdbId/${show.tmdbId ?: 0}/$encodedPoster/${show.plays}"
+                            )
                         }
                     )
                 }
-            }
-        },
-        snackbarHost = { androidx.compose.material3.SnackbarHost(snackbarHostState) }
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = BottomNavItem.Sync.route,
-            modifier = Modifier.padding(innerPadding)
-        ) {
-            composable(BottomNavItem.Trakt.route) {
-                TraktScreen(
-                    snackbarHostState = snackbarHostState,
-                    onNavigateToMovieDetail = { movie ->
-                        val encodedTitle = java.net.URLEncoder.encode(movie.title, "UTF-8")
-                        val encodedPoster = java.net.URLEncoder.encode(movie.posterUrl ?: "_null_", "UTF-8")
-                        val imdbId = movie.imdbId?.takeIf { it.isNotBlank() } ?: "_null_"
-                        navController.navigate(
-                            "detail/movie/$encodedTitle/${movie.year ?: 0}/$imdbId/${movie.tmdbId ?: 0}/$encodedPoster/${movie.plays}"
-                        )
-                    },
-                    onNavigateToShowDetail = { show ->
-                        val encodedTitle = java.net.URLEncoder.encode(show.title, "UTF-8")
-                        val encodedPoster = java.net.URLEncoder.encode(show.posterUrl ?: "_null_", "UTF-8")
-                        val imdbId = show.imdbId?.takeIf { it.isNotBlank() } ?: "_null_"
-                        navController.navigate(
-                            "detail/show/$encodedTitle/${show.year ?: 0}/$imdbId/${show.tmdbId ?: 0}/$encodedPoster/${show.plays}"
-                        )
-                    }
-                )
-            }
-            composable(BottomNavItem.Sync.route) {
-                SyncScreen(
-                    onNavigateToDetail = { item ->
-                        val encodedTitle = java.net.URLEncoder.encode(item.title, "UTF-8")
-                        val posterUrl = item.neoDBMark?.item?.coverImageUrl ?: "_null_"
-                        val encodedPoster = java.net.URLEncoder.encode(posterUrl, "UTF-8")
-                        navController.navigate(
-                            "detail/sync/$encodedTitle/${item.year ?: 0}/_null_/_null_/$encodedPoster/0"
-                        )
-                    }
-                )
-            }
-            composable(BottomNavItem.Search.route) {
-                SearchScreen(
-                    onNavigateToDetail = { entry ->
-                        val encodedTitle = java.net.URLEncoder.encode(entry.displayTitle, "UTF-8")
-                        val encodedPoster = java.net.URLEncoder.encode(entry.coverImageUrl ?: "_null_", "UTF-8")
-                        val type = if (entry.category == "movie") "movie" else "show"
-                        navController.navigate(
-                            "detail/$type/$encodedTitle/0/_null_/_null_/$encodedPoster/0"
-                        )
-                    }
-                )
-            }
-            composable(BottomNavItem.Settings.route) {
-                SettingsScreen()
-            }
-            // 详情页面
-            composable("detail/{type}/{title}/{year}/{imdbId}/{tmdbId}/{posterUrl}/{plays}") { backStackEntry ->
-                val type = backStackEntry.arguments?.getString("type") ?: "movie"
-                val title = backStackEntry.arguments?.getString("title") ?: ""
-                val year = backStackEntry.arguments?.getString("year")?.toIntOrNull()
-                val imdbId = backStackEntry.arguments?.getString("imdbId")?.takeIf {
-                    it.isNotBlank() && it != "_null_" && it != "null"
+                composable(BottomNavItem.Sync.route) {
+                    SyncScreen(
+                        onNavigateToDetail = { item ->
+                            val encodedTitle = java.net.URLEncoder.encode(item.title, "UTF-8")
+                            val posterUrl = item.neoDBMark?.item?.coverImageUrl ?: "_null_"
+                            val encodedPoster = java.net.URLEncoder.encode(posterUrl, "UTF-8")
+                            navController.navigate(
+                                "detail/sync/$encodedTitle/${item.year ?: 0}/_null_/_null_/$encodedPoster/0"
+                            )
+                        }
+                    )
                 }
-                val tmdbId = backStackEntry.arguments?.getString("tmdbId")?.toLongOrNull()?.takeIf { it > 0 }
-                val posterUrl = backStackEntry.arguments?.getString("posterUrl")?.takeIf {
-                    it.isNotBlank() && it != "_null_" && it != "null"
+                composable(BottomNavItem.Search.route) {
+                    SearchScreen(
+                        onNavigateToDetail = { entry ->
+                            val encodedTitle = java.net.URLEncoder.encode(entry.displayTitle, "UTF-8")
+                            val encodedPoster = java.net.URLEncoder.encode(entry.coverImageUrl ?: "_null_", "UTF-8")
+                            val type = if (entry.category == "movie") "movie" else "show"
+                            navController.navigate(
+                                "detail/$type/$encodedTitle/0/_null_/_null_/$encodedPoster/0"
+                            )
+                        }
+                    )
                 }
-                val plays = backStackEntry.arguments?.getString("plays")?.toIntOrNull()?.takeIf { it > 0 }
-                val decodedType = if (type == "movie" || type == "sync") "电影" else "剧集"
+                composable(BottomNavItem.Settings.route) {
+                    SettingsScreen()
+                }
+                composable("detail/{type}/{title}/{year}/{imdbId}/{tmdbId}/{posterUrl}/{plays}") { backStackEntry ->
+                    val type = backStackEntry.arguments?.getString("type") ?: "movie"
+                    val title = backStackEntry.arguments?.getString("title") ?: ""
+                    val year = backStackEntry.arguments?.getString("year")?.toIntOrNull()
+                    val imdbId = backStackEntry.arguments?.getString("imdbId")?.takeIf {
+                        it.isNotBlank() && it != "_null_" && it != "null"
+                    }
+                    val tmdbId = backStackEntry.arguments?.getString("tmdbId")?.toLongOrNull()?.takeIf { it > 0 }
+                    val posterUrl = backStackEntry.arguments?.getString("posterUrl")?.takeIf {
+                        it.isNotBlank() && it != "_null_" && it != "null"
+                    }
+                    val plays = backStackEntry.arguments?.getString("plays")?.toIntOrNull()?.takeIf { it > 0 }
+                    val decodedType = if (type == "movie" || type == "sync") "电影" else "剧集"
 
-                DetailScreen(
-                    title = java.net.URLDecoder.decode(title, "UTF-8"),
-                    year = year,
-                    type = decodedType,
-                    posterUrl = posterUrl,
-                    imdbId = imdbId,
-                    tmdbId = tmdbId,
-                    plays = plays,
-                    onBack = { navController.popBackStack() }
-                )
+                    DetailScreen(
+                        title = java.net.URLDecoder.decode(title, "UTF-8"),
+                        year = year,
+                        type = decodedType,
+                        posterUrl = posterUrl,
+                        imdbId = imdbId,
+                        tmdbId = tmdbId,
+                        plays = plays,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
             }
         }
     }

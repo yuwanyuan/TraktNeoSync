@@ -36,6 +36,9 @@ class AuthRepository @Inject constructor(
 
         // 首选显示语言（影响TMDB请求language参数）
         val PREFERRED_LANGUAGE = stringPreferencesKey("preferred_language")
+
+        // 深色模式偏好
+        val DARK_THEME = stringPreferencesKey("dark_theme")
     }
     
     // ========== Trakt Auth ==========
@@ -135,5 +138,15 @@ class AuthRepository @Inject constructor(
     suspend fun initLanguage() {
         val lang = dataStore.data.first()[Keys.PREFERRED_LANGUAGE] ?: "zh-CN"
         tmdbLanguageProvider.language = lang
+    }
+
+    // ========== 深色模式 ==========
+
+    val darkTheme: Flow<String?> = dataStore.data.map { it[Keys.DARK_THEME] }
+
+    suspend fun setDarkTheme(mode: String) {
+        dataStore.edit { prefs ->
+            prefs[Keys.DARK_THEME] = mode
+        }
     }
 }

@@ -50,7 +50,8 @@ class SettingsViewModel @Inject constructor(
                 authRepository.neodbAccessToken,
                 authRepository.neodbUser,
                 authRepository.tmdbApiKey,
-                authRepository.preferredLanguage
+                authRepository.preferredLanguage,
+                authRepository.darkTheme
             ) { values: Array<String?> ->
                 val traktToken = values[0]
                 val traktUser = values[1]
@@ -58,13 +59,15 @@ class SettingsViewModel @Inject constructor(
                 val neodbUser = values[3]
                 val tmdbKey = values[4]
                 val lang = values[5]
+                val dark = values[6]
                 _uiState.value.copy(
                     traktConnected = traktToken != null,
                     traktUsername = traktUser,
                     neodbConnected = neodbToken != null,
                     neodbUsername = neodbUser,
                     tmdbApiKey = tmdbKey ?: "",
-                    preferredLanguage = lang ?: "zh-CN"
+                    preferredLanguage = lang ?: "zh-CN",
+                    darkThemeMode = dark ?: "system"
                 )
             }.collect { state ->
                 _uiState.value = state
@@ -182,6 +185,13 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setDarkTheme(mode: String) {
+        viewModelScope.launch {
+            authRepository.setDarkTheme(mode)
+            AppLogger.log("SettingsViewModel: 深色模式切换为 $mode")
+        }
+    }
+
     // ========== 清理缓存 ==========
     fun clearCache(onDone: () -> Unit) {
         viewModelScope.launch {
@@ -209,5 +219,6 @@ data class SettingsUiState(
     val tmdbKeyTesting: Boolean = false,
     val tmdbKeyValid: Boolean? = null,
     val preferredLanguage: String = "zh-CN",
+    val darkThemeMode: String = "system",
     val cacheSize: String = "0 B",
 )

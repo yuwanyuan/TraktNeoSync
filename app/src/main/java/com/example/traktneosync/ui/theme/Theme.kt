@@ -24,10 +24,17 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun TraktNeoSyncTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkThemeMode: String = "system",
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
+    val isSystemDark = isSystemInDarkTheme()
+    val darkTheme = when (darkThemeMode) {
+        "light" -> false
+        "dark" -> true
+        else -> isSystemDark
+    }
+
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current

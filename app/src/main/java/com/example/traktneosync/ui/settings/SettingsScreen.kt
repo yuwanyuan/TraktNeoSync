@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -45,6 +46,7 @@ fun SettingsScreen(
             uiState = uiState,
             onBack = { currentPage = "main" },
             onLanguageChange = { viewModel.setPreferredLanguage(it) },
+            onDarkThemeChange = { viewModel.setDarkTheme(it) },
             onClearCache = {
                 viewModel.clearCache {
                     Toast.makeText(context, "缓存已清理", Toast.LENGTH_SHORT).show()
@@ -179,6 +181,7 @@ private fun PreferencesScreen(
     uiState: SettingsUiState,
     onBack: () -> Unit,
     onLanguageChange: (String) -> Unit,
+    onDarkThemeChange: (String) -> Unit,
     onClearCache: () -> Unit,
     onOpenGithub: () -> Unit
 ) {
@@ -202,6 +205,13 @@ private fun PreferencesScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item { Spacer(modifier = Modifier.height(4.dp)) }
+
+            item {
+                DarkThemeCard(
+                    currentMode = uiState.darkThemeMode,
+                    onModeChange = onDarkThemeChange
+                )
+            }
 
             item {
                 LanguageCard(
@@ -235,6 +245,93 @@ private fun SectionTitle(title: String) {
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DarkThemeCard(
+    currentMode: String,
+    onModeChange: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val modes = listOf(
+        "system" to "跟随系统",
+        "light" to "浅色模式",
+        "dark" to "深色模式"
+    )
+    val currentLabel = modes.find { it.first == currentMode }?.second ?: "跟随系统"
+
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .background(MaterialTheme.colorScheme.primary)
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DarkMode,
+                        contentDescription = "深色模式",
+                        modifier = Modifier.size(36.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "深色模式",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = currentLabel,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = it }
+                ) {
+                    OutlinedTextField(
+                        value = currentLabel,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("当前模式") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        modes.forEach { (code, label) ->
+                            DropdownMenuItem(
+                                text = { Text(label) },
+                                onClick = {
+                                    onModeChange(code)
+                                    expanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
