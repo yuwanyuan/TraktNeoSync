@@ -1,10 +1,11 @@
 package com.example.traktneosync.ui.sync
 
 import android.widget.Toast
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -53,9 +54,12 @@ fun SyncScreen(
             onCheck = { viewModel.checkSync() },
             onForceCheck = { viewModel.checkSync(force = true) },
             onSyncSelected = { viewModel.syncSelected() },
+            onSyncAll = { viewModel.syncAll() },
             isAuthenticated = uiState.isAuthenticated,
             selectedCount = uiState.selectedCount,
-            hasItems = uiState.items.isNotEmpty()
+            totalCount = uiState.items.count { !it.isSynced },
+            hasItems = uiState.items.isNotEmpty(),
+            isSelectionMode = uiState.isSelectionMode
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -72,11 +76,13 @@ fun SyncScreen(
                     modifier = Modifier.weight(1f)
                 )
 
-                TextButton(onClick = { viewModel.toggleSelectAll() }) {
-                    Text(
-                        if (uiState.allSelected) "取消全选" else "全选",
-                        style = MaterialTheme.typography.labelLarge
-                    )
+                if (uiState.isSelectionMode) {
+                    TextButton(onClick = { viewModel.toggleSelectAll() }) {
+                        Text(
+                            if (uiState.allSelected) "取消全选" else "全选",
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
                 }
             }
 
@@ -99,7 +105,10 @@ fun SyncScreen(
                 ) { item ->
                     SyncItemCard(
                         item = item,
-                        onToggleSelect = { viewModel.toggleSelect(item.uuid) }
+                        isSelectionMode = uiState.isSelectionMode,
+                        onToggleSelect = { viewModel.toggleSelect(item.uuid) },
+                        onEnterSelectionMode = { viewModel.enterSelectionMode() },
+                        onSyncSingle = { viewModel.syncSingle(item) }
                     )
                 }
             }
@@ -119,9 +128,12 @@ private fun SyncHeader(
     onCheck: () -> Unit,
     onForceCheck: () -> Unit,
     onSyncSelected: () -> Unit,
+    onSyncAll: () -> Unit,
     isAuthenticated: Boolean,
     selectedCount: Int,
-    hasItems: Boolean
+    totalCount: Int,
+    hasItems: Boolean,
+    isSelectionMode: Boolean
 ) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth()
@@ -213,13 +225,20 @@ private fun SyncHeader(
                         }
                     }
 
-                    if (hasItems) {
+                    if (hasItems && isSelectionMode && selectedCount > 0) {
                         Button(
                             onClick = onSyncSelected,
-                            enabled = isAuthenticated && selectedCount > 0,
                             modifier = Modifier.weight(1f)
                         ) {
                             Text("同步选中 ($selectedCount)")
+                        }
+                    } else if (hasItems) {
+                        Button(
+                            onClick = onSyncAll,
+                            enabled = isAuthenticated && totalCount > 0,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("全部同步 ($totalCount)")
                         }
                     }
                 }
@@ -277,20 +296,35 @@ private fun StatsCard(stats: Map<String, Int>) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SyncItemCard(
     item: SyncListItem,
-    onToggleSelect: () -> Unit
+    isSelectionMode: Boolean,
+    onToggleSelect: () -> Unit,
+    onEnterSelectionMode: () -> Unit,
+    onSyncSingle: () -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = !item.isSynced && !item.isSyncing) { onToggleSelect() },
+            .combinedClickable(
+                onClick = {
+                    if (isSelectionMode) {
+                        onToggleSelect()
+                    }
+                },
+                onLongClick = {
+                    if (!isSelectionMode && !item.isSynced && !item.isSyncing) {
+                        onEnterSelectionMode()
+                    }
+                }
+            ),
         colors = CardDefaults.cardColors(
             containerColor = when {
                 item.isSynced -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
                 item.isSyncing -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                item.isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
+                isSelectionMode && item.isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
                 else -> MaterialTheme.colorScheme.surface
             }
         )
@@ -302,12 +336,14 @@ private fun SyncItemCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Checkbox(
-                checked = item.isSelected || item.isSynced,
-                onCheckedChange = if (!item.isSynced && !item.isSyncing) { { onToggleSelect() } } else null,
-                modifier = Modifier.size(24.dp),
-                enabled = !item.isSynced && !item.isSyncing
-            )
+            if (isSelectionMode) {
+                Checkbox(
+                    checked = item.isSelected || item.isSynced,
+                    onCheckedChange = if (!item.isSynced && !item.isSyncing) { { onToggleSelect() } } else null,
+                    modifier = Modifier.size(24.dp),
+                    enabled = !item.isSynced && !item.isSyncing
+                )
+            }
 
             val posterUrl = item.posterUrl
             if (posterUrl != null) {
@@ -374,6 +410,15 @@ private fun SyncItemCard(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
+                }
+            }
+
+            if (!isSelectionMode && !item.isSynced && !item.isSyncing) {
+                FilledTonalButton(
+                    onClick = onSyncSingle,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Text("同步", style = MaterialTheme.typography.labelMedium)
                 }
             }
         }

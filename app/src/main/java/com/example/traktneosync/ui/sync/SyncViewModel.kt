@@ -60,6 +60,17 @@ class SyncViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(syncError = null)
     }
 
+    fun enterSelectionMode() {
+        _uiState.value = _uiState.value.copy(isSelectionMode = true)
+    }
+
+    fun exitSelectionMode() {
+        _uiState.value = _uiState.value.copy(
+            isSelectionMode = false,
+            items = _uiState.value.items.map { it.copy(isSelected = false) }
+        )
+    }
+
     fun toggleSelectAll() {
         val currentItems = _uiState.value.items
         val allSelected = currentItems.all { it.isSelected }
@@ -74,6 +85,44 @@ class SyncViewModel @Inject constructor(
                 if (it.uuid == itemUuid) it.copy(isSelected = !it.isSelected) else it
             }
         )
+    }
+
+    fun syncSingle(item: SyncListItem) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                items = _uiState.value.items.map {
+                    if (it.uuid == item.uuid) it.copy(isSyncing = true) else it
+                }
+            )
+
+            val result = syncRepository.addToNeoDB(item.traktItem, item.shelfType)
+            result.fold(
+                onSuccess = {
+                    _uiState.value = _uiState.value.copy(
+                        items = _uiState.value.items.map {
+                            if (it.uuid == item.uuid) it.copy(isSynced = true, isSyncing = false) else it
+                        }
+                    )
+                },
+                onFailure = { error ->
+                    _uiState.value = _uiState.value.copy(
+                        items = _uiState.value.items.map {
+                            if (it.uuid == item.uuid) it.copy(isSyncing = false, syncError = error.message) else it
+                        }
+                    )
+                }
+            )
+
+            val remaining = _uiState.value.items.filter { !it.isSynced }
+            try {
+                cacheDao.replaceSyncCache(remaining.map { it.toSyncCacheEntity() })
+            } catch (_: Exception) {
+            }
+            _uiState.value = _uiState.value.copy(
+                stats = buildStats(remaining),
+                hasMoreItems = remaining.isNotEmpty()
+            )
+        }
     }
 
     fun checkSync(force: Boolean = false) {
@@ -326,60 +375,72 @@ class SyncViewModel @Inject constructor(
 
     fun syncSelected() {
         viewModelScope.launch {
-            val selectedItems = _uiState.value.items.filter { it.isSelected }
+            val selectedItems = _uiState.value.items.filter { it.isSelected && !it.isSynced }
             if (selectedItems.isEmpty()) return@launch
+            syncItems(selectedItems)
+        }
+    }
 
+    fun syncAll() {
+        viewModelScope.launch {
+            val allItems = _uiState.value.items.filter { !it.isSynced }
+            if (allItems.isEmpty()) return@launch
+            syncItems(allItems)
+        }
+    }
+
+    private suspend fun syncItems(items: List<SyncListItem>) {
+        _uiState.value = _uiState.value.copy(
+            items = _uiState.value.items.map {
+                if (items.any { si -> si.uuid == it.uuid }) it.copy(isSyncing = true) else it
+            }
+        )
+
+        items.forEachIndexed { index, item ->
             _uiState.value = _uiState.value.copy(
-                items = _uiState.value.items.map { it.copy(isSyncing = it.isSelected) }
+                syncProgress = SyncProgress(
+                    current = index + 1,
+                    total = items.size,
+                    currentTitle = item.title
+                )
             )
 
-            selectedItems.forEachIndexed { index, item ->
-                _uiState.value = _uiState.value.copy(
-                    syncProgress = SyncProgress(
-                        current = index + 1,
-                        total = selectedItems.size,
-                        currentTitle = item.title
+            val result = syncRepository.addToNeoDB(item.traktItem, item.shelfType)
+            result.fold(
+                onSuccess = {
+                    _uiState.value = _uiState.value.copy(
+                        items = _uiState.value.items.map {
+                            if (it.uuid == item.uuid) it.copy(isSynced = true, isSyncing = false)
+                            else it
+                        }
                     )
-                )
-
-                val result = syncRepository.addToNeoDB(item.traktItem, item.shelfType)
-                result.fold(
-                    onSuccess = {
-                        _uiState.value = _uiState.value.copy(
-                            items = _uiState.value.items.map {
-                                if (it.uuid == item.uuid) it.copy(isSynced = true, isSyncing = false)
-                                else it
-                            }
-                        )
-                    },
-                    onFailure = { error ->
-                        AppLogger.warn(TAG, "同步单项失败", error, mapOf("title" to item.title))
-                        _uiState.value = _uiState.value.copy(
-                            items = _uiState.value.items.map {
-                                if (it.uuid == item.uuid) it.copy(isSyncing = false, syncError = error.message)
-                                else it
-                            }
-                        )
-                    }
-                )
-            }
-
-            _uiState.value = _uiState.value.copy(syncProgress = null)
-
-            val remaining = _uiState.value.items.filter { !it.isSynced }
-
-            try {
-                cacheDao.replaceSyncCache(remaining.map { it.toSyncCacheEntity() })
-            } catch (e: Exception) {
-                AppLogger.warn(TAG, "更新同步缓存失败", e)
-            }
-
-            val stats = buildStats(remaining)
-            _uiState.value = _uiState.value.copy(
-                stats = stats,
-                hasMoreItems = remaining.isNotEmpty()
+                },
+                onFailure = { error ->
+                    AppLogger.warn(TAG, "同步单项失败", error, mapOf("title" to item.title))
+                    _uiState.value = _uiState.value.copy(
+                        items = _uiState.value.items.map {
+                            if (it.uuid == item.uuid) it.copy(isSyncing = false, syncError = error.message)
+                            else it
+                        }
+                    )
+                }
             )
         }
+
+        _uiState.value = _uiState.value.copy(syncProgress = null)
+
+        val remaining = _uiState.value.items.filter { !it.isSynced }
+        try {
+            cacheDao.replaceSyncCache(remaining.map { it.toSyncCacheEntity() })
+        } catch (e: Exception) {
+            AppLogger.warn(TAG, "更新同步缓存失败", e)
+        }
+
+        val stats = buildStats(remaining)
+        _uiState.value = _uiState.value.copy(
+            stats = stats,
+            hasMoreItems = remaining.isNotEmpty()
+        )
     }
 
     private fun findMatchingMark(
@@ -460,7 +521,8 @@ data class SyncUiState(
     val hasMoreItems: Boolean = false,
     val syncProgress: SyncProgress? = null,
     val syncError: String? = null,
-    val stats: Map<String, Int> = emptyMap()
+    val stats: Map<String, Int> = emptyMap(),
+    val isSelectionMode: Boolean = false
 ) {
     val filteredItems: List<SyncListItem>
         get() = when (filter) {
