@@ -511,7 +511,7 @@ private fun LogLevelCard(onLogLevelChange: (LogLevel) -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Default.BugReport,
+                    imageVector = Icons.Default.Language,
                     contentDescription = "日志级别",
                     modifier = Modifier.size(36.dp),
                     tint = MaterialTheme.colorScheme.tertiary
