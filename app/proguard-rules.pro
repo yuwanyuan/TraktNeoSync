@@ -110,4 +110,6 @@
 -keep class com.example.traktneosync.data.AuthRepository$* { *; }
 
 # ========== Compose ==========
--keepclassmembers class androidx.compose.** { *; }
+-keep class androidx.compose.** { *; }
+-keep interface androidx.compose.** { *; }
+-dontwarn androidx.compose.**
