@@ -40,22 +40,30 @@ class ShowsViewModel @Inject constructor(
     }
 
     fun selectTab(index: Int) {
+        if (_uiState.value.selectedTab == index) return
         _uiState.value = _uiState.value.copy(selectedTab = index, errorMessage = null)
         loadShows()
     }
 
     fun refresh() {
         _uiState.value = _uiState.value.copy(errorMessage = null)
-        loadShows()
+        loadShows(force = true)
     }
 
     fun clearError() {
         _uiState.value = _uiState.value.copy(errorMessage = null)
     }
 
-    private fun loadShows() {
+    private fun loadShows(force: Boolean = false) {
         viewModelScope.launch {
             val status = if (_uiState.value.selectedTab == 0) "watched" else "watchlist"
+            val currentItems = _uiState.value.items
+
+            // 如果已有数据且不是强制刷新，直接返回
+            if (!force && currentItems.isNotEmpty()) {
+                AppLogger.log("ShowsViewModel: tab=$status 已有 ${currentItems.size} 条数据，跳过加载")
+                return@launch
+            }
 
             // 1. 先读本地缓存
             val cached = try {
@@ -66,7 +74,7 @@ class ShowsViewModel @Inject constructor(
             }
 
             if (cached.isNotEmpty()) {
-                _uiState.value = _uiState.value.copy(items = cached, isLoading = true)
+                _uiState.value = _uiState.value.withItems(_uiState.value.selectedTab, cached, isLoading = true)
                 AppLogger.log("ShowsViewModel: 从缓存加载 ${cached.size} 条剧集, tab=$status")
             } else {
                 _uiState.value = _uiState.value.copy(isLoading = true)
@@ -149,19 +157,27 @@ class ShowsViewModel @Inject constructor(
                     )
                     return@launch
                 }
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    errorMessage = "加载失败: ${e.localizedMessage ?: "网络错误"}",
-                    items = emptyList()
-                )
+                _uiState.value = _uiState.value.withItems(
+                    _uiState.value.selectedTab,
+                    emptyList(),
+                    isLoading = false
+                ).copy(errorMessage = "加载失败: ${e.localizedMessage ?: "网络错误"}")
                 return@launch
             }
 
-            _uiState.value = _uiState.value.copy(
-                isLoading = false,
-                items = items,
-                errorMessage = null
-            )
+            _uiState.value = _uiState.value.withItems(
+                _uiState.value.selectedTab,
+                items,
+                isLoading = false
+            ).copy(errorMessage = null)
+        }
+    }
+
+    private fun ShowsUiState.withItems(tab: Int, items: List<ShowItem>, isLoading: Boolean): ShowsUiState {
+        return if (tab == 0) {
+            copy(watchedItems = items, isLoading = isLoading)
+        } else {
+            copy(watchlistItems = items, isLoading = isLoading)
         }
     }
 
@@ -226,9 +242,13 @@ private fun ShowItem.toEntity(type: String, status: String) = TraktCacheEntity(
 data class ShowsUiState(
     val isLoading: Boolean = false,
     val selectedTab: Int = 0, // 0=已观看, 1=待看
-    val items: List<ShowItem> = emptyList(),
+    val watchedItems: List<ShowItem> = emptyList(),
+    val watchlistItems: List<ShowItem> = emptyList(),
     val errorMessage: String? = null
-)
+) {
+    val items: List<ShowItem>
+        get() = if (selectedTab == 0) watchedItems else watchlistItems
+}
 
 data class ShowItem(
     val title: String,

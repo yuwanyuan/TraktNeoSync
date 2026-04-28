@@ -40,22 +40,30 @@ class MoviesViewModel @Inject constructor(
     }
 
     fun selectTab(index: Int) {
+        if (_uiState.value.selectedTab == index) return
         _uiState.value = _uiState.value.copy(selectedTab = index, errorMessage = null)
         loadMovies()
     }
 
     fun refresh() {
         _uiState.value = _uiState.value.copy(errorMessage = null)
-        loadMovies()
+        loadMovies(force = true)
     }
 
     fun clearError() {
         _uiState.value = _uiState.value.copy(errorMessage = null)
     }
 
-    private fun loadMovies() {
+    private fun loadMovies(force: Boolean = false) {
         viewModelScope.launch {
             val status = if (_uiState.value.selectedTab == 0) "watched" else "watchlist"
+            val currentItems = _uiState.value.items
+
+            // 如果已有数据且不是强制刷新，直接返回
+            if (!force && currentItems.isNotEmpty()) {
+                AppLogger.log("MoviesViewModel: tab=$status 已有 ${currentItems.size} 条数据，跳过加载")
+                return@launch
+            }
 
             // 1. 先读本地缓存，有数据先展示，减少白屏
             val cached = try {
@@ -66,7 +74,7 @@ class MoviesViewModel @Inject constructor(
             }
 
             if (cached.isNotEmpty()) {
-                _uiState.value = _uiState.value.copy(items = cached, isLoading = true)
+                _uiState.value = _uiState.value.withItems(_uiState.value.selectedTab, cached, isLoading = true)
                 AppLogger.log("MoviesViewModel: 从缓存加载 ${cached.size} 条电影, tab=$status")
             } else {
                 _uiState.value = _uiState.value.copy(isLoading = true)
@@ -146,19 +154,27 @@ class MoviesViewModel @Inject constructor(
                     )
                     return@launch
                 }
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    errorMessage = "加载失败: ${e.localizedMessage ?: "网络错误"}",
-                    items = emptyList()
-                )
+                _uiState.value = _uiState.value.withItems(
+                    _uiState.value.selectedTab,
+                    emptyList(),
+                    isLoading = false
+                ).copy(errorMessage = "加载失败: ${e.localizedMessage ?: "网络错误"}")
                 return@launch
             }
 
-            _uiState.value = _uiState.value.copy(
-                isLoading = false,
-                items = items,
-                errorMessage = null
-            )
+            _uiState.value = _uiState.value.withItems(
+                _uiState.value.selectedTab,
+                items,
+                isLoading = false
+            ).copy(errorMessage = null)
+        }
+    }
+
+    private fun MoviesUiState.withItems(tab: Int, items: List<MovieItem>, isLoading: Boolean): MoviesUiState {
+        return if (tab == 0) {
+            copy(watchedItems = items, isLoading = isLoading)
+        } else {
+            copy(watchlistItems = items, isLoading = isLoading)
         }
     }
 
@@ -236,9 +252,13 @@ private fun MovieItem.toEntity(type: String, status: String) = TraktCacheEntity(
 data class MoviesUiState(
     val isLoading: Boolean = false,
     val selectedTab: Int = 0, // 0=已观看, 1=待看
-    val items: List<MovieItem> = emptyList(),
+    val watchedItems: List<MovieItem> = emptyList(),
+    val watchlistItems: List<MovieItem> = emptyList(),
     val errorMessage: String? = null
-)
+) {
+    val items: List<MovieItem>
+        get() = if (selectedTab == 0) watchedItems else watchlistItems
+}
 
 data class MovieItem(
     val title: String,

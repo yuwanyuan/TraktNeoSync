@@ -4,12 +4,15 @@ import android.app.DownloadManager
 import android.content.Context
 import android.net.Uri
 import android.os.Environment
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -17,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,12 +31,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ShowsScreen(
     snackbarHostState: androidx.compose.material3.SnackbarHostState? = null,
@@ -41,6 +46,18 @@ fun ShowsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val tabs = listOf("已观看", "待看")
+    val pagerState = rememberPagerState(
+        initialPage = uiState.selectedTab,
+        pageCount = { 2 }
+    )
+    val scope = rememberCoroutineScope()
+
+    // Pager 滑动驱动 ViewModel tab 切换
+    LaunchedEffect(pagerState.currentPage) {
+        if (pagerState.currentPage != uiState.selectedTab) {
+            viewModel.selectTab(pagerState.currentPage)
+        }
+    }
 
     if (uiState.errorMessage != null) {
         val error = uiState.errorMessage
@@ -62,11 +79,13 @@ fun ShowsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        TabRow(selectedTabIndex = uiState.selectedTab) {
+        TabRow(selectedTabIndex = pagerState.currentPage) {
             tabs.forEachIndexed { index, title ->
                 Tab(
-                    selected = uiState.selectedTab == index,
-                    onClick = { viewModel.selectTab(index) },
+                    selected = pagerState.currentPage == index,
+                    onClick = {
+                        scope.launch { pagerState.animateScrollToPage(index) }
+                    },
                     text = { Text(title) }
                 )
             }
@@ -74,31 +93,38 @@ fun ShowsScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        when {
-            uiState.isLoading -> {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize()
+        ) { page ->
+            val pageItems = if (page == 0) uiState.watchedItems else uiState.watchlistItems
+            val pageLoading = uiState.isLoading && pageItems.isEmpty() && page == uiState.selectedTab
+
+            when {
+                pageLoading -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
                 }
-            }
-            uiState.items.isEmpty() -> {
-                EmptyState()
-            }
-            else -> {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(
-                        count = uiState.items.size,
-                        key = { uiState.items[it].tmdbId ?: it }
-                    ) { index ->
-                        val item = uiState.items[index]
-                        ShowCard(
-                            item = item,
-                            onClick = { onNavigateToDetail(item) }
-                        )
+                pageItems.isEmpty() -> {
+                    EmptyState()
+                }
+                else -> {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(
+                            items = pageItems,
+                            key = { it.tmdbId ?: it.hashCode() }
+                        ) { item ->
+                            ShowCard(
+                                item = item,
+                                onClick = { onNavigateToDetail(item) }
+                            )
+                        }
                     }
                 }
             }

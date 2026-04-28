@@ -26,24 +26,32 @@ class NeoDBViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(NeoDBUiState())
     val uiState: StateFlow<NeoDBUiState> = _uiState
 
-    init {
+    fun checkAuth() {
         viewModelScope.launch {
-            authRepository.neodbAccessToken.collect { token ->
-                _uiState.value = _uiState.value.copy(isAuthenticated = token != null)
-                if (token != null) {
-                    loadShelf(_uiState.value.selectedShelf)
-                }
-            }
+            val token = authRepository.neodbAccessToken.first()
+            _uiState.value = _uiState.value.copy(isAuthenticated = token != null)
         }
     }
 
     fun selectShelf(shelf: NeoDBShelf) {
+        if (_uiState.value.selectedShelf == shelf && _uiState.value.marks.isNotEmpty()) return
         _uiState.value = _uiState.value.copy(selectedShelf = shelf)
         loadShelf(shelf)
     }
 
     fun refresh() {
         loadShelf(_uiState.value.selectedShelf)
+    }
+
+    fun initialLoad() {
+        if (_uiState.value.marks.isNotEmpty() || _uiState.value.isLoading) return
+        viewModelScope.launch {
+            val token = authRepository.neodbAccessToken.first()
+            _uiState.value = _uiState.value.copy(isAuthenticated = token != null)
+            if (token != null) {
+                loadShelf(_uiState.value.selectedShelf)
+            }
+        }
     }
 
     private fun loadShelf(shelf: NeoDBShelf) {
