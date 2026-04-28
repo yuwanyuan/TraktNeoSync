@@ -12,6 +12,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,6 +28,7 @@ import com.example.traktneosync.ui.shows.ShowsScreen
 
 @Composable
 fun TraktScreen(
+    snackbarHostState: SnackbarHostState? = null,
     onNavigateToMovieDetail: (MovieItem) -> Unit = {},
     onNavigateToShowDetail: (ShowItem) -> Unit = {}
 ) {
@@ -44,32 +46,19 @@ fun TraktScreen(
                 .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            if (selectedType == "movie") {
-                Button(
-                    onClick = { },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("电影")
-                }
-                OutlinedButton(
-                    onClick = { selectedType = "show" },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("剧集")
-                }
-            } else {
-                OutlinedButton(
-                    onClick = { selectedType = "movie" },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("电影")
-                }
-                Button(
-                    onClick = { },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("剧集")
-                }
+            Button(
+                onClick = { selectedType = "movie" },
+                modifier = Modifier.weight(1f),
+                enabled = selectedType != "movie"
+            ) {
+                Text("电影")
+            }
+            Button(
+                onClick = { selectedType = "show" },
+                modifier = Modifier.weight(1f),
+                enabled = selectedType != "show"
+            ) {
+                Text("剧集")
             }
         }
 
@@ -77,8 +66,14 @@ fun TraktScreen(
 
         // 内容区域
         when (selectedType) {
-            "movie" -> MoviesScreen(onNavigateToDetail = onNavigateToMovieDetail)
-            else -> ShowsScreen(onNavigateToDetail = onNavigateToShowDetail)
+            "movie" -> MoviesScreen(
+                snackbarHostState = snackbarHostState,
+                onNavigateToDetail = onNavigateToMovieDetail
+            )
+            else -> ShowsScreen(
+                snackbarHostState = snackbarHostState,
+                onNavigateToDetail = onNavigateToShowDetail
+            )
         }
     }
 }

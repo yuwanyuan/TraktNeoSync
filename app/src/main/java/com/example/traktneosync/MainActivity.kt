@@ -194,6 +194,7 @@ fun TraktNeoSyncApp(
         BottomNavItem.Search,
         BottomNavItem.Settings
     )
+    val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -235,7 +236,8 @@ fun TraktNeoSyncApp(
                     )
                 }
             }
-        }
+        },
+        snackbarHost = { androidx.compose.material3.SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         NavHost(
             navController = navController,
@@ -244,6 +246,7 @@ fun TraktNeoSyncApp(
         ) {
             composable(BottomNavItem.Trakt.route) {
                 TraktScreen(
+                    snackbarHostState = snackbarHostState,
                     onNavigateToMovieDetail = { movie ->
                         val encodedTitle = java.net.URLEncoder.encode(movie.title, "UTF-8")
                         val encodedPoster = java.net.URLEncoder.encode(movie.posterUrl ?: "_null_", "UTF-8")

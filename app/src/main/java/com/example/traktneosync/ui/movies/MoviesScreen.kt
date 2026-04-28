@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -34,10 +35,21 @@ import java.time.format.DateTimeFormatter
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MoviesScreen(
+    snackbarHostState: androidx.compose.material3.SnackbarHostState? = null,
     viewModel: MoviesViewModel = hiltViewModel(),
     onNavigateToDetail: (MovieItem) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+
+    // 显示错误提示
+    if (uiState.errorMessage != null) {
+        val error = uiState.errorMessage
+        LaunchedEffect(error) {
+            snackbarHostState?.showSnackbar(error ?: "未知错误")
+            viewModel.clearError()
+        }
+    }
 
     Column(
         modifier = Modifier

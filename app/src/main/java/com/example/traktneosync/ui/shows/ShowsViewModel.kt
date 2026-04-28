@@ -40,12 +40,17 @@ class ShowsViewModel @Inject constructor(
     }
 
     fun selectTab(index: Int) {
-        _uiState.value = _uiState.value.copy(selectedTab = index)
+        _uiState.value = _uiState.value.copy(selectedTab = index, errorMessage = null)
         loadShows()
     }
 
     fun refresh() {
+        _uiState.value = _uiState.value.copy(errorMessage = null)
         loadShows()
+    }
+
+    fun clearError() {
+        _uiState.value = _uiState.value.copy(errorMessage = null)
     }
 
     private fun loadShows() {
@@ -138,25 +143,30 @@ class ShowsViewModel @Inject constructor(
                 Log.e(TAG, "Error loading shows: ${e.message}")
                 AppLogger.log("ShowsViewModel: 加载剧集列表失败", e)
                 if (cached.isNotEmpty()) {
-                    _uiState.value = _uiState.value.copy(isLoading = false)
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        errorMessage = "加载失败: ${e.localizedMessage ?: "网络错误"}"
+                    )
                     return@launch
                 }
-                emptyList()
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    errorMessage = "加载失败: ${e.localizedMessage ?: "网络错误"}",
+                    items = emptyList()
+                )
+                return@launch
             }
 
             _uiState.value = _uiState.value.copy(
                 isLoading = false,
-                items = items
+                items = items,
+                errorMessage = null
             )
         }
     }
 
     private suspend fun fetchTmdbDetailCached(tmdbId: Long): TmdbDetailResult {
         val cachedPoster = try { cacheDao.getPoster(tmdbId) } catch (e: Exception) { null }
-        if (cachedPoster != null) {
-            val posterUrl = cachedPoster.posterPath?.let { "https://image.tmdb.org/t/p/w200$it" }
-            return TmdbDetailResult(posterUrl = posterUrl, chineseTitle = null)
-        }
 
         return try {
             val detail = tmdbApi.getTvDetail(tmdbId)
@@ -168,6 +178,7 @@ class ShowsViewModel @Inject constructor(
                 AppLogger.log("ShowsViewModel: 写入海报缓存失败 tmdbId=$tmdbId", e)
             }
             val posterUrl = path?.let { "https://image.tmdb.org/t/p/w200$it" }
+            AppLogger.log("ShowsViewModel: TMDB中文标题 tmdbId=$tmdbId, title=$chineseTitle")
             TmdbDetailResult(posterUrl = posterUrl, chineseTitle = chineseTitle)
         } catch (e: Exception) {
             Log.w(TAG, "TMDB fetch failed for id=$tmdbId: ${e.message}")
@@ -175,7 +186,8 @@ class ShowsViewModel @Inject constructor(
             try {
                 cacheDao.insertPosters(listOf(PosterCacheEntity(tmdbId = tmdbId, posterPath = null)))
             } catch (_: Exception) { }
-            TmdbDetailResult(posterUrl = null, chineseTitle = null)
+            val fallbackPosterUrl = cachedPoster?.posterPath?.let { "https://image.tmdb.org/t/p/w200$it" }
+            TmdbDetailResult(posterUrl = fallbackPosterUrl, chineseTitle = null)
         }
     }
 
@@ -214,7 +226,8 @@ private fun ShowItem.toEntity(type: String, status: String) = TraktCacheEntity(
 data class ShowsUiState(
     val isLoading: Boolean = false,
     val selectedTab: Int = 0, // 0=已观看, 1=待看
-    val items: List<ShowItem> = emptyList()
+    val items: List<ShowItem> = emptyList(),
+    val errorMessage: String? = null
 )
 
 data class ShowItem(

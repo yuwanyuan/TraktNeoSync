@@ -40,12 +40,17 @@ class MoviesViewModel @Inject constructor(
     }
 
     fun selectTab(index: Int) {
-        _uiState.value = _uiState.value.copy(selectedTab = index)
+        _uiState.value = _uiState.value.copy(selectedTab = index, errorMessage = null)
         loadMovies()
     }
 
     fun refresh() {
+        _uiState.value = _uiState.value.copy(errorMessage = null)
         loadMovies()
+    }
+
+    fun clearError() {
+        _uiState.value = _uiState.value.copy(errorMessage = null)
     }
 
     private fun loadMovies() {
@@ -135,28 +140,37 @@ class MoviesViewModel @Inject constructor(
                 AppLogger.log("MoviesViewModel: 加载电影列表失败", e)
                 // 网络失败且已有缓存时，保持缓存展示并停止 loading
                 if (cached.isNotEmpty()) {
-                    _uiState.value = _uiState.value.copy(isLoading = false)
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        errorMessage = "加载失败: ${e.localizedMessage ?: "网络错误"}"
+                    )
                     return@launch
                 }
-                emptyList()
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    errorMessage = "加载失败: ${e.localizedMessage ?: "网络错误"}",
+                    items = emptyList()
+                )
+                return@launch
             }
 
             _uiState.value = _uiState.value.copy(
                 isLoading = false,
-                items = items
+                items = items,
+                errorMessage = null
             )
         }
     }
 
     private suspend fun fetchTmdbDetailCached(tmdbId: Long, isMovie: Boolean): TmdbDetailResult {
-        // 查海报缓存
+        // 查海报缓存（也用于判断是否需要请求TMDB）
         val cachedPoster = try { cacheDao.getPoster(tmdbId) } catch (e: Exception) { null }
-        if (cachedPoster != null) {
-            val posterUrl = cachedPoster.posterPath?.let { "https://image.tmdb.org/t/p/w200$it" }
-            return TmdbDetailResult(posterUrl = posterUrl, chineseTitle = null)
-        }
 
-        // 未命中，请求 TMDB
+        // 如果只有海报缓存且之前成功获取过（posterPath 有值或明确为null），跳过网络请求
+        // 但中文标题需要单独缓存，这里先简化：命中缓存时只返回海报，中文标题走独立缓存或重新请求
+        // 实际上为了获取中文标题，即使海报缓存命中也应该请求 TMDB（除非我们也缓存中文标题）
+        // 这里改为：始终请求 TMDB 获取中文标题，但海报可用缓存避免重复下载
+
         return try {
             val (path, chineseTitle) = if (isMovie) {
                 val d = tmdbApi.getMovieDetail(tmdbId)
@@ -172,6 +186,7 @@ class MoviesViewModel @Inject constructor(
                 AppLogger.log("MoviesViewModel: 写入海报缓存失败 tmdbId=$tmdbId", e)
             }
             val posterUrl = path?.let { "https://image.tmdb.org/t/p/w200$it" }
+            AppLogger.log("MoviesViewModel: TMDB中文标题 tmdbId=$tmdbId, title=$chineseTitle")
             TmdbDetailResult(posterUrl = posterUrl, chineseTitle = chineseTitle)
         } catch (e: Exception) {
             Log.w(TAG, "TMDB fetch failed for id=$tmdbId: ${e.message}")
@@ -180,7 +195,9 @@ class MoviesViewModel @Inject constructor(
             try {
                 cacheDao.insertPosters(listOf(PosterCacheEntity(tmdbId = tmdbId, posterPath = null)))
             } catch (_: Exception) { }
-            TmdbDetailResult(posterUrl = null, chineseTitle = null)
+            // 失败时如果有缓存的海报，返回缓存的海报URL
+            val fallbackPosterUrl = cachedPoster?.posterPath?.let { "https://image.tmdb.org/t/p/w200$it" }
+            TmdbDetailResult(posterUrl = fallbackPosterUrl, chineseTitle = null)
         }
     }
 
@@ -219,7 +236,8 @@ private fun MovieItem.toEntity(type: String, status: String) = TraktCacheEntity(
 data class MoviesUiState(
     val isLoading: Boolean = false,
     val selectedTab: Int = 0, // 0=已观看, 1=待看
-    val items: List<MovieItem> = emptyList()
+    val items: List<MovieItem> = emptyList(),
+    val errorMessage: String? = null
 )
 
 data class MovieItem(
