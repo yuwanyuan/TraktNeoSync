@@ -428,14 +428,15 @@ fun TraktNeoSyncApp(
                 composable("detail/{type}/{title}/{year}/{imdbId}/{tmdbId}/{posterUrl}/{plays}") { backStackEntry ->
                     val type = backStackEntry.arguments?.getString("type") ?: "movie"
                     val title = backStackEntry.arguments?.getString("title") ?: ""
-                    val year = backStackEntry.arguments?.getString("year")?.toIntOrNull()
+                    val year = backStackEntry.arguments?.getString("year")?.toIntOrNull()?.takeIf { it > 0 }
                     val imdbId = backStackEntry.arguments?.getString("imdbId")?.takeIf {
                         it.isNotBlank() && it != "_null_" && it != "null"
                     }
                     val tmdbId = backStackEntry.arguments?.getString("tmdbId")?.toLongOrNull()?.takeIf { it > 0 }
-                    val posterUrl = backStackEntry.arguments?.getString("posterUrl")?.takeIf {
+                    val rawPosterUrl = backStackEntry.arguments?.getString("posterUrl")?.takeIf {
                         it.isNotBlank() && it != "_null_" && it != "null"
                     }
+                    val posterUrl = rawPosterUrl?.let { java.net.URLDecoder.decode(it, "UTF-8") }
                     val plays = backStackEntry.arguments?.getString("plays")?.toIntOrNull()?.takeIf { it > 0 }
                     val decodedType = if (type == "movie" || type == "sync") "电影" else "剧集"
 

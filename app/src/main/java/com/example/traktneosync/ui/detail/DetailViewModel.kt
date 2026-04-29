@@ -9,6 +9,7 @@ import com.example.traktneosync.data.neodb.NeoDBMark
 import com.example.traktneosync.data.neodb.NeoDBMarkRequest
 import com.example.traktneosync.data.neodb.NeoDBPaginatedPosts
 import com.example.traktneosync.data.neodb.NeoDBPost
+import com.example.traktneosync.data.omdb.OmdbApiService
 import com.example.traktneosync.data.tmdb.TmdbApiService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,6 +26,7 @@ class DetailViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val neoDBApi: NeoDBApiService,
     private val tmdbApi: TmdbApiService,
+    private val omdbApi: OmdbApiService,
 ) : ViewModel() {
 
     companion object {
@@ -64,7 +66,7 @@ class DetailViewModel @Inject constructor(
                 }
 
                 var searchTitle = title
-                var searchYear = year
+                var searchYear = year?.takeIf { it > 0 }
                 val isMovie = isMovieType(type)
                 val category = if (isMovie) "movie" else "tv"
 
@@ -190,6 +192,26 @@ class DetailViewModel @Inject constructor(
             } catch (e: Exception) {
                 AppLogger.error(TAG, "加载TMDB详情失败", e)
                 _uiState.update { it.copy(isLoadingDetails = false, detailsError = e.message) }
+            }
+        }
+    }
+
+    fun loadImdbRating(imdbId: String) {
+        viewModelScope.launch {
+            try {
+                val response = omdbApi.getByImdbId(imdbId)
+                if (response.response == "True" && response.imdbRating != null && response.imdbRating != "N/A") {
+                    val rating = response.imdbRating.toFloatOrNull()
+                    val votes = response.imdbVotes?.replace(",", "")?.toIntOrNull()
+                    _uiState.update { state ->
+                        state.copy(
+                            imdbRating = rating,
+                            imdbVoteCount = votes,
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                AppLogger.debug(TAG, "加载IMDB评分失败: ${e.message}")
             }
         }
     }
@@ -394,6 +416,8 @@ data class DetailUiState(
     val detailsError: String? = null,
     val tmdbRating: Float? = null,
     val tmdbVoteCount: Int? = null,
+    val imdbRating: Float? = null,
+    val imdbVoteCount: Int? = null,
     val neoDBRating: Float? = null,
     val neoDBRatingCount: Int = 0,
     val selectedImageUrl: String? = null,

@@ -64,6 +64,9 @@ fun DetailScreen(
         if (tmdbId != null && tmdbId > 0) {
             viewModel.loadTmdbDetails(tmdbId, type)
         }
+        if (!imdbId.isNullOrEmpty()) {
+            viewModel.loadImdbRating(imdbId)
+        }
     }
 
     val selectedUrl = uiState.selectedImageUrl
@@ -377,7 +380,7 @@ fun DetailScreen(
                     }
                 }
 
-                if (uiState.tmdbRating != null || uiState.neoDBRating != null) {
+                if (uiState.imdbRating != null || uiState.neoDBRating != null) {
                     item {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
@@ -392,7 +395,7 @@ fun DetailScreen(
                                 horizontalArrangement = Arrangement.SpaceEvenly,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                if (uiState.tmdbRating != null) {
+                                if (uiState.imdbRating != null) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Icon(
@@ -403,19 +406,19 @@ fun DetailScreen(
                                             )
                                             Spacer(modifier = Modifier.width(4.dp))
                                             Text(
-                                                text = "%.1f".format(uiState.tmdbRating),
+                                                text = "%.1f".format(uiState.imdbRating),
                                                 style = MaterialTheme.typography.titleLarge,
                                                 fontWeight = FontWeight.Bold
                                             )
                                         }
                                         Text(
-                                            text = "TMDB${uiState.tmdbVoteCount?.let { " · ${it}人评" } ?: ""}",
+                                            text = "IMDB${uiState.imdbVoteCount?.let { " · ${it}人评" } ?: ""}",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 }
-                                if (uiState.tmdbRating != null && uiState.neoDBRating != null) {
+                                if (uiState.imdbRating != null && uiState.neoDBRating != null) {
                                     Box(
                                         modifier = Modifier
                                             .height(32.dp)

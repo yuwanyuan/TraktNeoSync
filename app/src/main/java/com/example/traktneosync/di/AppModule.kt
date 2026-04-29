@@ -10,6 +10,8 @@ import com.example.traktneosync.data.cache.AppDatabase
 import com.example.traktneosync.data.cache.CacheDao
 import com.example.traktneosync.data.neodb.NeoDBApiService
 import com.example.traktneosync.data.neodb.NeoDBBaseUrlProvider
+import com.example.traktneosync.data.omdb.OmdbApiKeyProvider
+import com.example.traktneosync.data.omdb.OmdbApiService
 import com.example.traktneosync.data.proxy.ProxyProvider
 import com.example.traktneosync.data.tmdb.TmdbApiKeyProvider
 import com.example.traktneosync.data.tmdb.TmdbApiService
@@ -143,6 +145,7 @@ object AppModule {
 
     @Provides
     @Singleton
+    @TmdbHttpClient
     fun provideTmdbHttpClient(
         keyProvider: TmdbApiKeyProvider,
         langProvider: TmdbLanguageProvider,
@@ -171,13 +174,51 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideTmdbApiService(client: OkHttpClient): TmdbApiService {
+    fun provideTmdbApiService(@TmdbHttpClient client: OkHttpClient): TmdbApiService {
         return Retrofit.Builder()
             .baseUrl("https://api.themoviedb.org/3/")
             .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(TmdbApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    @OmdbHttpClient
+    fun provideOmdbHttpClient(
+        keyProvider: OmdbApiKeyProvider,
+        proxyProvider: ProxyProvider
+    ): OkHttpClient {
+        val logging = HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.BASIC
+        }
+        return OkHttpClient.Builder()
+            .applyProxy(proxyProvider)
+            .addInterceptor(logging)
+            .addInterceptor(Interceptor { chain ->
+                val apiKey = keyProvider.apiKey.takeIf { it.isNotEmpty() }
+                    ?: throw IllegalStateException("OMDB API Key is not set")
+                val original = chain.request()
+                val url = original.url.newBuilder()
+                    .addQueryParameter("apikey", apiKey)
+                    .addQueryParameter("r", "json")
+                    .build()
+                val request = original.newBuilder().url(url).build()
+                chain.proceed(request)
+            })
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideOmdbApiService(@OmdbHttpClient client: OkHttpClient): OmdbApiService {
+        return Retrofit.Builder()
+            .baseUrl("https://www.omdbapi.com/")
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(OmdbApiService::class.java)
     }
 
     @Provides
@@ -222,3 +263,9 @@ annotation class NeoDBHttpClient
 
 @Qualifier
 annotation class NeoDBRetrofit
+
+@Qualifier
+annotation class TmdbHttpClient
+
+@Qualifier
+annotation class OmdbHttpClient
