@@ -11,6 +11,7 @@ import com.example.traktneosync.data.trakt.TraktWatchedItem
 import com.example.traktneosync.data.trakt.TraktWatchlistItem
 import com.example.traktneosync.util.AppLogger
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
@@ -28,10 +29,17 @@ class SyncRepository @Inject constructor(
 ) {
     companion object {
         private const val TAG = "SyncRepository"
+        private const val SYNC_DELAY_MS = 500L
+        private val TMDB_ID_REGEX_CACHE = mutableMapOf<Long, Regex>()
+        private fun tmdbIdRegex(tmdbId: Long): Regex {
+            return TMDB_ID_REGEX_CACHE.getOrPut(tmdbId) {
+                Regex("/${tmdbId}(?:/|$|\\D)")
+            }
+        }
     }
 
     // ========== Trakt 数据获取 ==========
-    
+
     suspend fun getTraktWatchedMovies(): List<TraktWatchedItem> = withContext(Dispatchers.IO) {
         if (!traktOAuthManager.ensureValidToken()) return@withContext emptyList()
         val token = authRepository.traktAccessToken.first() ?: return@withContext emptyList()
@@ -42,7 +50,7 @@ class SyncRepository @Inject constructor(
             emptyList()
         }
     }
-    
+
     suspend fun getTraktWatchedShows(): List<TraktWatchedItem> = withContext(Dispatchers.IO) {
         if (!traktOAuthManager.ensureValidToken()) return@withContext emptyList()
         val token = authRepository.traktAccessToken.first() ?: return@withContext emptyList()
@@ -53,38 +61,56 @@ class SyncRepository @Inject constructor(
             emptyList()
         }
     }
-    
+
     suspend fun getTraktMovieWatchlist(): List<TraktWatchlistItem> = withContext(Dispatchers.IO) {
         if (!traktOAuthManager.ensureValidToken()) return@withContext emptyList()
         val token = authRepository.traktAccessToken.first() ?: return@withContext emptyList()
         return@withContext try {
-            traktApi.getMovieWatchlist("Bearer $token")
+            val allItems = mutableListOf<TraktWatchlistItem>()
+            var page = 1
+            while (true) {
+                val response = traktApi.getMovieWatchlist("Bearer $token", page = page)
+                if (response.isEmpty()) break
+                allItems.addAll(response)
+                if (response.size < 100) break
+                page++
+            }
+            allItems
         } catch (e: Exception) {
             AppLogger.error(TAG, "获取Trakt电影待看清单失败", e, mapOf("api" to "getMovieWatchlist"))
             emptyList()
         }
     }
-    
+
     suspend fun getTraktShowWatchlist(): List<TraktWatchlistItem> = withContext(Dispatchers.IO) {
         if (!traktOAuthManager.ensureValidToken()) return@withContext emptyList()
         val token = authRepository.traktAccessToken.first() ?: return@withContext emptyList()
         return@withContext try {
-            traktApi.getShowWatchlist("Bearer $token")
+            val allItems = mutableListOf<TraktWatchlistItem>()
+            var page = 1
+            while (true) {
+                val response = traktApi.getShowWatchlist("Bearer $token", page = page)
+                if (response.isEmpty()) break
+                allItems.addAll(response)
+                if (response.size < 100) break
+                page++
+            }
+            allItems
         } catch (e: Exception) {
             AppLogger.error(TAG, "获取Trakt剧集待看清单失败", e, mapOf("api" to "getShowWatchlist"))
             emptyList()
         }
     }
-    
+
     // ========== NeoDB 数据获取 ==========
-    
+
     suspend fun getNeoDBCompletedMovies(): List<NeoDBMark> = getNeoDBShelf("complete", "movie")
     suspend fun getNeoDBCompletedTV(): List<NeoDBMark> = getNeoDBShelf("complete", "tv")
     suspend fun getNeoDBWishlistMovies(): List<NeoDBMark> = getNeoDBShelf("wishlist", "movie")
     suspend fun getNeoDBWishlistTV(): List<NeoDBMark> = getNeoDBShelf("wishlist", "tv")
     suspend fun getNeoDBProgressMovies(): List<NeoDBMark> = getNeoDBShelf("progress", "movie")
     suspend fun getNeoDBProgressTV(): List<NeoDBMark> = getNeoDBShelf("progress", "tv")
-    
+
     private suspend fun getNeoDBShelf(shelfType: String, category: String? = null): List<NeoDBMark> = withContext(Dispatchers.IO) {
         if (!neodbOAuthManager.ensureValidToken()) return@withContext emptyList()
         val token = authRepository.neodbAccessToken.first() ?: return@withContext emptyList()
@@ -106,31 +132,30 @@ class SyncRepository @Inject constructor(
 
         return@withContext allMarks
     }
-    
+
     // ========== 同步检查 ==========
 
     data class SyncCheckResult(
         val traktItem: TraktItem,
         val neoDBMark: NeoDBMark?,
         val isInNeoDB: Boolean,
-        val traktSource: TraktSource // 区分来源：已观看或待看
+        val traktSource: TraktSource
     )
 
     enum class TraktSource {
-        WATCHED,  // 已观看 → 应同步到 complete
-        WATCHLIST // 待看清单 → 应同步到 wishlist
+        WATCHED,
+        WATCHLIST
     }
 
     data class TraktItem(
         val title: String,
         val year: Int?,
-        val type: String, // "movie" or "show"
+        val type: String,
         val ids: TraktIds,
         val watchedAt: String? = null,
         val plays: Int = 0
     )
-    
-    // 检查 Trakt 观看记录是否已在 NeoDB 标记
+
     fun checkSyncStatus(): Flow<SyncCheckResult> = flow {
         val traktWatchedMovies = getTraktWatchedMovies()
         val traktWatchedShows = getTraktWatchedShows()
@@ -144,7 +169,6 @@ class SyncRepository @Inject constructor(
         val neoDBProgressMovies = getNeoDBProgressMovies()
         val neoDBProgressTV = getNeoDBProgressTV()
 
-        // 转换 Trakt 已观看电影
         traktWatchedMovies.forEach { watched ->
             watched.movie?.let { movie ->
                 val traktItem = TraktItem(
@@ -166,16 +190,18 @@ class SyncRepository @Inject constructor(
                     neoDBProgressTV
                 )
 
+                val isInNeoDB = existingMark != null &&
+                    isShelfTypeCompatible(existingMark.shelfType, TraktSource.WATCHED)
+
                 emit(SyncCheckResult(
                     traktItem = traktItem,
                     neoDBMark = existingMark,
-                    isInNeoDB = existingMark != null,
+                    isInNeoDB = isInNeoDB,
                     traktSource = TraktSource.WATCHED
                 ))
             }
         }
 
-        // 转换 Trakt 已观看剧集
         traktWatchedShows.forEach { watched ->
             watched.show?.let { show ->
                 val traktItem = TraktItem(
@@ -197,16 +223,18 @@ class SyncRepository @Inject constructor(
                     neoDBProgressTV
                 )
 
+                val isInNeoDB = existingMark != null &&
+                    isShelfTypeCompatible(existingMark.shelfType, TraktSource.WATCHED)
+
                 emit(SyncCheckResult(
                     traktItem = traktItem,
                     neoDBMark = existingMark,
-                    isInNeoDB = existingMark != null,
+                    isInNeoDB = isInNeoDB,
                     traktSource = TraktSource.WATCHED
                 ))
             }
         }
 
-        // 转换 Trakt 待看清单
         traktMovieWatchlist.forEach { item ->
             item.movie?.let { movie ->
                 val traktItem = TraktItem(
@@ -226,10 +254,13 @@ class SyncRepository @Inject constructor(
                     neoDBProgressTV
                 )
 
+                val isInNeoDB = existingMark != null &&
+                    isShelfTypeCompatible(existingMark.shelfType, TraktSource.WATCHLIST)
+
                 emit(SyncCheckResult(
                     traktItem = traktItem,
                     neoDBMark = existingMark,
-                    isInNeoDB = existingMark != null,
+                    isInNeoDB = isInNeoDB,
                     traktSource = TraktSource.WATCHLIST
                 ))
             }
@@ -254,16 +285,27 @@ class SyncRepository @Inject constructor(
                     neoDBProgressTV
                 )
 
+                val isInNeoDB = existingMark != null &&
+                    isShelfTypeCompatible(existingMark.shelfType, TraktSource.WATCHLIST)
+
                 emit(SyncCheckResult(
                     traktItem = traktItem,
                     neoDBMark = existingMark,
-                    isInNeoDB = existingMark != null,
+                    isInNeoDB = isInNeoDB,
                     traktSource = TraktSource.WATCHLIST
                 ))
             }
         }
     }
-    
+
+    private fun isShelfTypeCompatible(neoDBShelfType: String?, traktSource: TraktSource): Boolean {
+        val shelf = neoDBShelfType ?: return false
+        return when (traktSource) {
+            TraktSource.WATCHED -> shelf == "complete" || shelf == "progress"
+            TraktSource.WATCHLIST -> shelf == "wishlist"
+        }
+    }
+
     fun findMatchingNeoDBMark(
         traktItem: TraktItem,
         completedMovies: List<NeoDBMark>,
@@ -273,33 +315,38 @@ class SyncRepository @Inject constructor(
         progressMovies: List<NeoDBMark> = emptyList(),
         progressTV: List<NeoDBMark> = emptyList()
     ): NeoDBMark? {
-        val allNeoDBMarks = completedMovies + completedTV + wishlistMovies + wishlistTV + progressMovies + progressTV
+        val candidateMarks = if (traktItem.type == "movie") {
+            completedMovies + wishlistMovies + progressMovies
+        } else {
+            completedTV + wishlistTV + progressTV
+        }
 
         traktItem.ids.tmdb?.let { tmdbId ->
-            allNeoDBMarks.find { mark ->
+            val regex = tmdbIdRegex(tmdbId)
+            candidateMarks.find { mark ->
                 mark.item.externalResources.any { res ->
                     val url = res.url
                     (url.contains("themoviedb.org", ignoreCase = true) || url.contains("tmdb.org", ignoreCase = true)) &&
-                            (url.contains("/$tmdbId") || url.contains("/$tmdbId/") || url.endsWith("/$tmdbId"))
+                            regex.containsMatchIn(url)
                 }
             }?.let { return it }
         }
 
         traktItem.ids.imdb?.let { imdbId ->
-            allNeoDBMarks.find { mark ->
+            candidateMarks.find { mark ->
                 mark.item.externalResources.any { res ->
                     val url = res.url
                     (url.contains("imdb.com", ignoreCase = true) || url.contains("imdb.org", ignoreCase = true)) &&
-                            url.contains(imdbId, ignoreCase = true)
+                            url.contains("/$imdbId", ignoreCase = true)
                 }
             }?.let { return it }
         }
 
         return null
     }
-    
+
     // ========== 一键添加到 NeoDB ==========
-    
+
     suspend fun addToNeoDB(
         traktItem: TraktItem,
         shelfType: String,
@@ -326,7 +373,7 @@ class SyncRepository @Inject constructor(
             }
 
             val bestMatch = findBestMatch(searchResults.data, traktItem)
-                ?: searchResults.data.first()
+                ?: return@withContext Result.failure(Exception("未找到精确匹配: ${traktItem.title}，请手动搜索添加"))
 
             val markRequest = NeoDBMarkRequest(
                 shelfType = shelfType,
@@ -345,11 +392,12 @@ class SyncRepository @Inject constructor(
 
     private fun findBestMatch(entries: List<com.example.traktneosync.data.neodb.NeoDBEntry>, traktItem: TraktItem): com.example.traktneosync.data.neodb.NeoDBEntry? {
         traktItem.ids.tmdb?.let { tmdbId ->
+            val regex = tmdbIdRegex(tmdbId)
             entries.firstOrNull { entry ->
                 entry.externalResources.any { res ->
                     val url = res.url
                     (url.contains("themoviedb.org", ignoreCase = true) || url.contains("tmdb.org", ignoreCase = true)) &&
-                            (url.contains("/$tmdbId") || url.contains("/$tmdbId/") || url.endsWith("/$tmdbId"))
+                            regex.containsMatchIn(url)
                 }
             }?.let { return it }
         }
@@ -359,7 +407,7 @@ class SyncRepository @Inject constructor(
                 entry.externalResources.any { res ->
                     val url = res.url
                     (url.contains("imdb.com", ignoreCase = true) || url.contains("imdb.org", ignoreCase = true)) &&
-                            url.contains(imdbId, ignoreCase = true)
+                            url.contains("/$imdbId", ignoreCase = true)
                 }
             }?.let { return it }
         }
@@ -369,7 +417,7 @@ class SyncRepository @Inject constructor(
                     (traktItem.year == null || entry.brief.contains(traktItem.year.toString()))
         }
     }
-    
+
     // ========== 批量同步 ==========
 
     suspend fun syncAllWatchedToNeoDB(): SyncProgress {
@@ -377,7 +425,6 @@ class SyncRepository @Inject constructor(
 
         checkSyncStatus().collect { check ->
             if (!check.isInNeoDB) {
-                // 根据来源选择正确的书架类型
                 val shelfType = when (check.traktSource) {
                     TraktSource.WATCHED -> "complete"
                     TraktSource.WATCHLIST -> "wishlist"
@@ -388,6 +435,7 @@ class SyncRepository @Inject constructor(
                     success = result.isSuccess,
                     error = result.exceptionOrNull()?.message
                 ))
+                delay(SYNC_DELAY_MS)
             }
         }
 
@@ -398,14 +446,14 @@ class SyncRepository @Inject constructor(
             results = results
         )
     }
-    
+
     data class SyncProgress(
         val total: Int,
         val success: Int,
         val failed: Int,
         val results: List<SyncResult>
     )
-    
+
     data class SyncResult(
         val traktItem: TraktItem,
         val success: Boolean,

@@ -52,9 +52,11 @@ fun SearchScreen(
                 shareToMastodon = uiState.shareToMastodon,
                 isSubmitting = uiState.isSubmittingRating,
                 error = uiState.ratingError,
+                shelfType = uiState.ratingShelfType,
                 onRatingChange = { viewModel.setRatingValue(it) },
                 onCommentChange = { viewModel.setRatingComment(it) },
                 onShareToMastodonChange = { viewModel.setShareToMastodon(it) },
+                onShelfTypeChange = { viewModel.setRatingShelfType(it) },
                 onDismiss = { viewModel.dismissRatingDialog() },
                 onSubmit = { viewModel.submitRating() }
             )
@@ -423,6 +425,7 @@ private fun EmptySearchResults() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RatingDialog(
     entryTitle: String,
@@ -431,9 +434,11 @@ private fun RatingDialog(
     shareToMastodon: Boolean,
     isSubmitting: Boolean,
     error: String?,
+    shelfType: String,
     onRatingChange: (Int) -> Unit,
     onCommentChange: (String) -> Unit,
     onShareToMastodonChange: (Boolean) -> Unit,
+    onShelfTypeChange: (String) -> Unit,
     onDismiss: () -> Unit,
     onSubmit: () -> Unit
 ) {
@@ -463,7 +468,20 @@ private fun RatingDialog(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                // 评分 Slider
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf("想看" to "wishlist", "在看" to "progress", "已看" to "complete").forEach { (label, value) ->
+                        FilterChip(
+                            selected = shelfType == value,
+                            onClick = { onShelfTypeChange(value) },
+                            label = { Text(label, style = MaterialTheme.typography.labelMedium) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
                 Column {
                     Text(
                         text = "$ratingValue 分",
@@ -488,7 +506,6 @@ private fun RatingDialog(
                     }
                 }
 
-                // 评论输入
                 OutlinedTextField(
                     value = ratingComment,
                     onValueChange = onCommentChange,
@@ -498,7 +515,6 @@ private fun RatingDialog(
                     maxLines = 4
                 )
 
-                // 同步到长毛象开关
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -521,7 +537,6 @@ private fun RatingDialog(
                     )
                 }
 
-                // 错误提示
                 val ratingErr = error
                 if (ratingErr != null) {
                     Text(
@@ -531,7 +546,6 @@ private fun RatingDialog(
                     )
                 }
 
-                // 按钮
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,

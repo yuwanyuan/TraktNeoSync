@@ -50,10 +50,6 @@ class DetailViewModel @Inject constructor(
                 reviews = emptyList(),
                 reviewError = null,
                 overview = null,
-                backdropUrls = emptyList(),
-                posterUrls = emptyList(),
-                imdbRating = null,
-                imdbVoteCount = null,
                 neoDBRating = null,
                 neoDBRatingCount = 0,
             )
@@ -69,10 +65,9 @@ class DetailViewModel @Inject constructor(
 
                 var searchTitle = title
                 var searchYear = year
-                val isMovie = type == "电影" || type == "movie"
+                val isMovie = isMovieType(type)
                 val category = if (isMovie) "movie" else "tv"
 
-                // 如果有 tmdbId，先尝试获取中文译名和准确年份
                 if (tmdbId != null && tmdbId > 0) {
                     try {
                         val altTitles = if (isMovie) {
@@ -80,7 +75,6 @@ class DetailViewModel @Inject constructor(
                         } else {
                             tmdbApi.getTvAlternativeTitles(tmdbId)
                         }
-                        // 优先找中国大陆/台湾/香港中文标题
                         val cnTitle = altTitles.titles?.firstOrNull { it.iso31661 == "CN" }?.title
                             ?: altTitles.results?.firstOrNull { it.iso31661 == "CN" }?.title
                             ?: altTitles.titles?.firstOrNull { it.iso31661 == "TW" }?.title
@@ -93,7 +87,6 @@ class DetailViewModel @Inject constructor(
                             AppLogger.debug(TAG, "使用TMDB中文标题搜索NeoDB", mapOf("searchTitle" to searchTitle))
                         }
 
-                        // 同时获取 TMDB 的准确年份
                         if (isMovie) {
                             val detail = tmdbApi.getMovieDetail(tmdbId)
                             if (detail.releaseDate.isNotBlank()) {
@@ -110,7 +103,6 @@ class DetailViewModel @Inject constructor(
                     }
                 }
 
-                // 1. 搜索 NeoDB 条目
                 val query = if (imdbId != null && imdbId.isNotEmpty()) {
                     imdbId
                 } else {
@@ -123,21 +115,18 @@ class DetailViewModel @Inject constructor(
                     return@launch
                 }
 
-                // 2. 匹配最准确的结果
                 val bestMatch = if (imdbId != null && imdbId.isNotEmpty()) {
                     searchResult.data.firstOrNull { entry ->
                         entry.externalResources.any { it.url.contains(imdbId, ignoreCase = true) }
                     } ?: searchResult.data.first()
                 } else {
                     searchResult.data.firstOrNull { entry ->
-                        entry.displayTitle.equals(searchTitle, ignoreCase = true) ||
-                                entry.displayTitle.contains(searchTitle, ignoreCase = true)
+                        entry.displayTitle.equals(searchTitle, ignoreCase = true)
                     } ?: searchResult.data.first()
                 }
 
                 itemUuid = bestMatch.uuid
 
-                // 保存 NeoDB 简介和评分
                 _uiState.update {
                     it.copy(
                         overview = bestMatch.brief.takeIf { b -> b.isNotBlank() },
@@ -146,7 +135,6 @@ class DetailViewModel @Inject constructor(
                     )
                 }
 
-                // 3. 加载第一页评论
                 loadPostsPage(token, bestMatch.uuid, 1, reset = true)
             } catch (e: Exception) {
                 AppLogger.error(TAG, "加载NeoDB评论失败", e)
@@ -159,7 +147,7 @@ class DetailViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingDetails = true, detailsError = null) }
             try {
-                val isMovie = type == "电影" || type == "movie"
+                val isMovie = isMovieType(type)
                 val (tmdbOverview, voteAverage, voteCount) = if (isMovie) {
                     val d = tmdbApi.getMovieDetail(tmdbId)
                     Triple(d.overview, d.voteAverage, d.voteCount)
@@ -195,8 +183,8 @@ class DetailViewModel @Inject constructor(
                         backdropUrls = backdrops,
                         posterUrls = posters,
                         isLoadingDetails = false,
-                        imdbRating = voteAverage,
-                        imdbVoteCount = voteCount,
+                        tmdbRating = voteAverage,
+                        tmdbVoteCount = voteCount,
                     )
                 }
             } catch (e: Exception) {
@@ -206,6 +194,12 @@ class DetailViewModel @Inject constructor(
         }
     }
 
+    private fun isMovieType(type: String): Boolean {
+        return type.equals("电影", ignoreCase = false) ||
+                type.equals("movie", ignoreCase = true) ||
+                type.equals("film", ignoreCase = true)
+    }
+
     fun selectImage(url: String) {
         _uiState.update { it.copy(selectedImageUrl = url) }
     }
@@ -213,8 +207,6 @@ class DetailViewModel @Inject constructor(
     fun dismissImageViewer() {
         _uiState.update { it.copy(selectedImageUrl = null) }
     }
-
-    // ========== 评分对话框 ==========
 
     fun openRatingDialog() {
         _uiState.update { it.copy(showRatingDialog = true, ratingSubmitError = null) }
@@ -257,7 +249,7 @@ class DetailViewModel @Inject constructor(
 
                 val currentMark = _uiState.value.currentMark
                 val shelfType = currentMark?.shelfType?.takeIf { it.isNotBlank() } ?: "complete"
-                val visibility = if (shareToMastodon) 0 else 2 // 0=公开, 2=私密
+                val visibility = if (shareToMastodon) 0 else 2
 
                 val request = NeoDBMarkRequest(
                     shelfType = shelfType,
@@ -269,7 +261,6 @@ class DetailViewModel @Inject constructor(
                 neoDBApi.addOrUpdateMark("Bearer $token", uuid, request)
 
                 _uiState.update { it.copy(isSubmittingRating = false, showRatingDialog = false) }
-                // 刷新评论和评分数据
                 refreshNeoDBData()
             } catch (e: Exception) {
                 AppLogger.error(TAG, "提交评分失败", e)
@@ -283,10 +274,22 @@ class DetailViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val token = authRepository.neodbAccessToken.first() ?: return@launch
-                // 重新加载评论第一页
                 loadPostsPage(token, uuid, 1, reset = true)
-                // 评分数据会在用户下次进入详情页时重新加载
-                // 此处仅刷新评论即可
+
+                try {
+                    val searchResult = neoDBApi.search("Bearer $token", uuid, null, 1)
+                    val matchedItem = searchResult.data.firstOrNull { it.uuid == uuid }
+                    if (matchedItem != null) {
+                        _uiState.update {
+                            it.copy(
+                                neoDBRating = matchedItem.rating,
+                                neoDBRatingCount = matchedItem.ratingCount
+                            )
+                        }
+                    }
+                } catch (e: Exception) {
+                    AppLogger.debug(TAG, "刷新评分数据失败: ${e.message}")
+                }
             } catch (e: Exception) {
                 AppLogger.error(TAG, "刷新NeoDB数据失败", e)
             }
@@ -335,7 +338,7 @@ class DetailViewModel @Inject constructor(
         }
 
         _uiState.update { state ->
-            val combined = if (reset) newReviews else (state.reviews + newReviews).distinctBy { it.username + it.content + it.date }
+            val combined = if (reset) newReviews else (state.reviews + newReviews).distinctBy { Triple(it.username, it.content, it.date) }
             state.copy(
                 reviews = combined,
                 isLoadingReviews = false,
@@ -384,20 +387,16 @@ data class DetailUiState(
     val isLoadingMore: Boolean = false,
     val hasMoreReviews: Boolean = false,
     val reviewError: String? = null,
-    // 详情
     val overview: String? = null,
     val backdropUrls: List<String> = emptyList(),
     val posterUrls: List<String> = emptyList(),
     val isLoadingDetails: Boolean = false,
     val detailsError: String? = null,
-    // 评分
-    val imdbRating: Float? = null,
-    val imdbVoteCount: Int? = null,
+    val tmdbRating: Float? = null,
+    val tmdbVoteCount: Int? = null,
     val neoDBRating: Float? = null,
     val neoDBRatingCount: Int = 0,
-    // 图片查看器
     val selectedImageUrl: String? = null,
-    // 评分对话框
     val showRatingDialog: Boolean = false,
     val isLoadingMarkStatus: Boolean = false,
     val currentMark: NeoDBMark? = null,

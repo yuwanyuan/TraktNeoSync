@@ -258,7 +258,7 @@ fun DetailScreen(
                     .fillMaxSize()
                     .blur(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) 25.dp else 0.dp),
                 contentScale = ContentScale.Crop,
-                alpha = 0.35f
+                alpha = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) 0.35f else 0.15f
             )
         }
 
@@ -362,8 +362,8 @@ fun DetailScreen(
                                 onClick = { },
                                 label = { Text(type) },
                                 colors = AssistChipDefaults.assistChipColors(
-                                    containerColor = Color.White.copy(alpha = 0.15f),
-                                    labelColor = Color.White
+                                    containerColor = if (posterUrl != null) Color.White.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant,
+                                    labelColor = if (posterUrl != null) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             )
                             if (plays != null && plays > 0) {
@@ -377,7 +377,7 @@ fun DetailScreen(
                     }
                 }
 
-                if (uiState.imdbRating != null || uiState.neoDBRating != null) {
+                if (uiState.tmdbRating != null || uiState.neoDBRating != null) {
                     item {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
@@ -392,7 +392,7 @@ fun DetailScreen(
                                 horizontalArrangement = Arrangement.SpaceEvenly,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                if (uiState.imdbRating != null) {
+                                if (uiState.tmdbRating != null) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Icon(
@@ -403,19 +403,19 @@ fun DetailScreen(
                                             )
                                             Spacer(modifier = Modifier.width(4.dp))
                                             Text(
-                                                text = "%.1f".format(uiState.imdbRating),
+                                                text = "%.1f".format(uiState.tmdbRating),
                                                 style = MaterialTheme.typography.titleLarge,
                                                 fontWeight = FontWeight.Bold
                                             )
                                         }
                                         Text(
-                                            text = "IMDB${uiState.imdbVoteCount?.let { " · ${it}人评" } ?: ""}",
+                                            text = "TMDB${uiState.tmdbVoteCount?.let { " · ${it}人评" } ?: ""}",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 }
-                                if (uiState.imdbRating != null && uiState.neoDBRating != null) {
+                                if (uiState.tmdbRating != null && uiState.neoDBRating != null) {
                                     Box(
                                         modifier = Modifier
                                             .height(32.dp)
@@ -523,7 +523,7 @@ fun DetailScreen(
                             ) {
                                 items(
                                     items = allImages,
-                                    key = { it.takeLast(30) }
+                                    key = { it }
                                 ) { url ->
                                     AsyncImage(
                                         model = url,
@@ -611,7 +611,7 @@ fun DetailScreen(
                     else -> {
                         items(
                             count = uiState.reviews.size,
-                            key = { index -> "${index}_" + uiState.reviews[index].username + uiState.reviews[index].date }
+                            key = { index -> "${index}_${uiState.reviews[index].username}_${uiState.reviews[index].date}" }
                         ) { index ->
                             ReviewCard(review = uiState.reviews[index])
                         }

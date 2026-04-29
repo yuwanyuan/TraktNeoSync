@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -56,6 +57,7 @@ fun SyncScreen(
             onForceCheck = { viewModel.checkSync(force = true) },
             onSyncSelected = { viewModel.syncSelected() },
             onSyncAll = { viewModel.syncAll() },
+            onExitSelectionMode = { viewModel.exitSelectionMode() },
             isAuthenticated = uiState.isAuthenticated,
             selectedCount = uiState.selectedCount,
             totalCount = uiState.items.count { !it.isSynced },
@@ -97,7 +99,9 @@ fun SyncScreen(
 
         if (uiState.filteredItems.isNotEmpty()) {
             LazyColumn(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(
@@ -117,7 +121,8 @@ fun SyncScreen(
         } else if (!uiState.isLoading) {
             EmptyState(
                 isAuthenticated = uiState.isAuthenticated,
-                hasChecked = uiState.stats.isNotEmpty()
+                hasChecked = uiState.stats.isNotEmpty(),
+                modifier = Modifier.weight(1f)
             )
         }
     }
@@ -131,6 +136,7 @@ private fun SyncHeader(
     onForceCheck: () -> Unit,
     onSyncSelected: () -> Unit,
     onSyncAll: () -> Unit,
+    onExitSelectionMode: () -> Unit,
     isAuthenticated: Boolean,
     selectedCount: Int,
     totalCount: Int,
@@ -146,11 +152,22 @@ private fun SyncHeader(
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = "Trakt → NeoDB 同步",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Trakt → NeoDB 同步",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                if (isSelectionMode) {
+                    IconButton(onClick = onExitSelectionMode) {
+                        Icon(Icons.Default.Close, contentDescription = "退出选择模式")
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -190,7 +207,7 @@ private fun SyncHeader(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     LinearProgressIndicator(
-                        progress = syncProgress.current.toFloat() / syncProgress.total,
+                        progress = if (syncProgress.total > 0) syncProgress.current.toFloat() / syncProgress.total else 0f,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(4.dp))
@@ -343,7 +360,7 @@ private fun SyncItemCard(
         ) {
             if (isSelectionMode) {
                 Checkbox(
-                    checked = item.isSelected || item.isSynced,
+                    checked = item.isSelected,
                     onCheckedChange = if (!item.isSynced && !item.isSyncing) { { onToggleSelect() } } else null,
                     modifier = Modifier.size(24.dp),
                     enabled = !item.isSynced && !item.isSyncing
@@ -431,9 +448,9 @@ private fun SyncItemCard(
 }
 
 @Composable
-private fun EmptyState(isAuthenticated: Boolean, hasChecked: Boolean) {
+private fun EmptyState(isAuthenticated: Boolean, hasChecked: Boolean, modifier: Modifier = Modifier) {
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier.fillMaxWidth(),
         contentAlignment = Alignment.Center
     ) {
         Text(
