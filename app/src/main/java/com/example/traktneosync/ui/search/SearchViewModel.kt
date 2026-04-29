@@ -7,6 +7,13 @@ import com.example.traktneosync.data.AuthRepository
 import com.example.traktneosync.data.neodb.NeoDBApiService
 import com.example.traktneosync.data.neodb.NeoDBEntry
 import com.example.traktneosync.data.neodb.NeoDBMarkRequest
+import com.example.traktneosync.data.neodb.extractImdbId
+import com.example.traktneosync.data.neodb.extractTmdbId
+import com.example.traktneosync.data.trakt.TraktApiService
+import com.example.traktneosync.data.trakt.TraktIds
+import com.example.traktneosync.data.trakt.TraktSyncMovie
+import com.example.traktneosync.data.trakt.TraktSyncRequest
+import com.example.traktneosync.data.trakt.TraktSyncShow
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,7 +25,8 @@ import javax.inject.Inject
 class SearchViewModel @Inject constructor(
     private val neoDBApi: NeoDBApiService,
     private val authRepository: AuthRepository,
-    private val tmdbApi: com.example.traktneosync.data.tmdb.TmdbApiService
+    private val tmdbApi: com.example.traktneosync.data.tmdb.TmdbApiService,
+    private val traktApi: TraktApiService
 ) : ViewModel() {
 
     companion object {
@@ -76,7 +84,6 @@ class SearchViewModel @Inject constructor(
                     page = 1
                 )
 
-                // 从 TMDB 获取评分和 IMDb ID
                 val resultsWithTmdb = result.data.map { entry ->
                     if (entry.category == "movie" || entry.category == "tv") {
                         fetchTmdbInfo(entry)
@@ -121,21 +128,102 @@ class SearchViewModel @Inject constructor(
                     request = request
                 )
 
-                // 标记为已添加
                 _uiState.value = _uiState.value.copy(
-                    addedUuids = _uiState.value.addedUuids + entry.uuid
+                    addedNeoDBUuids = _uiState.value.addedNeoDBUuids + entry.uuid
                 )
 
             } catch (e: Exception) {
-                AppLogger.error(TAG, "添加到书架失败", e)
+                AppLogger.error(TAG, "添加到NeoDB书架失败", e)
                 _uiState.value = _uiState.value.copy(
-                    error = "添加失败: ${e.message}"
+                    error = "NeoDB添加失败: ${e.message}"
                 )
             }
         }
     }
 
-    // ========== 评分对话框 ==========
+    fun addToTraktWatchlist(entry: NeoDBEntry) {
+        viewModelScope.launch {
+            try {
+                val token = authRepository.traktAccessToken.first()
+                if (token == null) {
+                    _uiState.value = _uiState.value.copy(error = "未登录 Trakt")
+                    return@launch
+                }
+
+                val ids = buildTraktIds(entry)
+                val request = buildTraktSyncRequest(entry, ids)
+
+                traktApi.addToWatchlist("Bearer $token", request)
+
+                _uiState.value = _uiState.value.copy(
+                    traktWatchlistUuids = _uiState.value.traktWatchlistUuids + entry.uuid
+                )
+                AppLogger.info(TAG, "已添加到Trakt想看", mapOf("title" to entry.displayTitle))
+            } catch (e: Exception) {
+                AppLogger.error(TAG, "添加到Trakt想看失败", e)
+                _uiState.value = _uiState.value.copy(error = "Trakt想看添加失败: ${e.message}")
+            }
+        }
+    }
+
+    fun addToTraktHistory(entry: NeoDBEntry) {
+        viewModelScope.launch {
+            try {
+                val token = authRepository.traktAccessToken.first()
+                if (token == null) {
+                    _uiState.value = _uiState.value.copy(error = "未登录 Trakt")
+                    return@launch
+                }
+
+                val ids = buildTraktIds(entry)
+                val request = buildTraktSyncRequest(entry, ids, watchedAt = java.time.Instant.now().toString())
+
+                traktApi.addToHistory("Bearer $token", request)
+
+                _uiState.value = _uiState.value.copy(
+                    traktWatchedUuids = _uiState.value.traktWatchedUuids + entry.uuid
+                )
+                AppLogger.info(TAG, "已添加到Trakt已看", mapOf("title" to entry.displayTitle))
+            } catch (e: Exception) {
+                AppLogger.error(TAG, "添加到Trakt已看失败", e)
+                _uiState.value = _uiState.value.copy(error = "Trakt已看添加失败: ${e.message}")
+            }
+        }
+    }
+
+    private fun buildTraktIds(entry: NeoDBEntry): TraktIds {
+        val imdbId = entry.extractImdbId()
+        val tmdbId = entry.extractTmdbId()
+        return TraktIds(
+            trakt = 0,
+            imdb = imdbId,
+            tmdb = tmdbId
+        )
+    }
+
+    private fun buildTraktSyncRequest(entry: NeoDBEntry, ids: TraktIds, watchedAt: String? = null): TraktSyncRequest {
+        return if (entry.category == "movie") {
+            TraktSyncRequest(
+                movies = listOf(
+                    TraktSyncMovie(
+                        title = entry.displayTitle,
+                        ids = ids,
+                        watchedAt = watchedAt
+                    )
+                )
+            )
+        } else {
+            TraktSyncRequest(
+                shows = listOf(
+                    TraktSyncShow(
+                        title = entry.displayTitle,
+                        ids = ids,
+                        watchedAt = watchedAt
+                    )
+                )
+            )
+        }
+    }
 
     fun openRatingDialog(entry: NeoDBEntry) {
         _uiState.value = _uiState.value.copy(
@@ -200,7 +288,7 @@ class SearchViewModel @Inject constructor(
                     isSubmittingRating = false,
                     showRatingDialog = false,
                     ratingTargetEntry = null,
-                    addedUuids = _uiState.value.addedUuids + entry.uuid
+                    addedNeoDBUuids = _uiState.value.addedNeoDBUuids + entry.uuid
                 )
             } catch (e: Exception) {
                 AppLogger.error(TAG, "提交评分失败", e)
@@ -216,7 +304,6 @@ class SearchViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(error = null)
     }
 
-    // 从 TMDB 获取评分和 IMDb ID
     private suspend fun fetchTmdbInfo(entry: NeoDBEntry, year: Int? = null): NeoDBEntry {
         return try {
             val searchResult = if (entry.category == "movie") {
@@ -228,7 +315,6 @@ class SearchViewModel @Inject constructor(
             val firstResult = searchResult.results.firstOrNull()
             if (firstResult != null) {
                 val tmdbId = firstResult.id
-                // 获取 external_ids 以取得 IMDb ID
                 val externalIds = if (entry.category == "movie") {
                     tmdbApi.getMovieExternalIds(tmdbId)
                 } else {
@@ -257,9 +343,9 @@ data class SearchUiState(
     val results: List<NeoDBEntry> = emptyList(),
     val error: String? = null,
     val hasSearched: Boolean = false,
-    val shelfType: String = "wishlist", // 默认添加到想看
-    val addedUuids: Set<String> = emptySet(),
-    // 评分对话框
+    val addedNeoDBUuids: Set<String> = emptySet(),
+    val traktWatchlistUuids: Set<String> = emptySet(),
+    val traktWatchedUuids: Set<String> = emptySet(),
     val showRatingDialog: Boolean = false,
     val ratingTargetEntry: NeoDBEntry? = null,
     val ratingValue: Int = 5,

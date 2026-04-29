@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
+import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,6 +30,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.example.traktneosync.data.neodb.NeoDBEntry
+import com.example.traktneosync.data.neodb.extractImdbId
+import com.example.traktneosync.data.neodb.extractTmdbId
 
 @Composable
 fun SearchScreen(
@@ -117,11 +120,20 @@ fun SearchScreen(
             uiState.results.isNotEmpty() -> {
                 SearchResultsList(
                     results = uiState.results,
+                    addedNeoDBUuids = uiState.addedNeoDBUuids,
+                    traktWatchlistUuids = uiState.traktWatchlistUuids,
+                    traktWatchedUuids = uiState.traktWatchedUuids,
                     onAddToShelf = { entry, shelfType ->
                         viewModel.addToShelf(entry, shelfType)
                     },
                     onRate = { entry ->
                         viewModel.openRatingDialog(entry)
+                    },
+                    onAddTraktWatchlist = { entry ->
+                        viewModel.addToTraktWatchlist(entry)
+                    },
+                    onAddTraktHistory = { entry ->
+                        viewModel.addToTraktHistory(entry)
                     },
                     onNavigateToDetail = onNavigateToDetail
                 )
@@ -155,18 +167,28 @@ private fun CategoryFilter(
 @Composable
 private fun SearchResultsList(
     results: List<NeoDBEntry>,
+    addedNeoDBUuids: Set<String>,
+    traktWatchlistUuids: Set<String>,
+    traktWatchedUuids: Set<String>,
     onAddToShelf: (NeoDBEntry, String) -> Unit,
     onRate: (NeoDBEntry) -> Unit,
+    onAddTraktWatchlist: (NeoDBEntry) -> Unit,
+    onAddTraktHistory: (NeoDBEntry) -> Unit,
     onNavigateToDetail: (NeoDBEntry) -> Unit
 ) {
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        items(results) { entry ->
+        items(results, key = { it.uuid }) { entry ->
             SearchResultCard(
                 entry = entry,
+                isNeoDBAdded = entry.uuid in addedNeoDBUuids,
+                isTraktWatchlist = entry.uuid in traktWatchlistUuids,
+                isTraktWatched = entry.uuid in traktWatchedUuids,
                 onAddToShelf = { shelfType -> onAddToShelf(entry, shelfType) },
                 onRate = { onRate(entry) },
+                onAddTraktWatchlist = { onAddTraktWatchlist(entry) },
+                onAddTraktHistory = { onAddTraktHistory(entry) },
                 onClick = { onNavigateToDetail(entry) }
             )
         }
@@ -176,11 +198,17 @@ private fun SearchResultsList(
 @Composable
 private fun SearchResultCard(
     entry: NeoDBEntry,
+    isNeoDBAdded: Boolean,
+    isTraktWatchlist: Boolean,
+    isTraktWatched: Boolean,
     onAddToShelf: (String) -> Unit,
     onRate: () -> Unit,
+    onAddTraktWatchlist: () -> Unit,
+    onAddTraktHistory: () -> Unit,
     onClick: () -> Unit
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
+    val isMovieOrTv = entry.category == "movie" || entry.category == "tv"
 
     Card(
         modifier = Modifier
@@ -194,7 +222,6 @@ private fun SearchResultCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // 封面图片
             if (entry.coverImageUrl != null) {
                 AsyncImage(
                     model = entry.coverImageUrl,
@@ -205,7 +232,6 @@ private fun SearchResultCard(
                     contentScale = ContentScale.Crop
                 )
             } else {
-                // 无封面时的占位
                 Box(
                     modifier = Modifier
                         .size(width = 60.dp, height = 80.dp)
@@ -221,7 +247,6 @@ private fun SearchResultCard(
                 }
             }
 
-            // 文字信息
             Column(
                 modifier = Modifier.weight(1f)
             ) {
@@ -231,7 +256,6 @@ private fun SearchResultCard(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-                // 评分信息：优先显示 TMDB 评分，其次 NeoDB 评分
                 val ratingText = when {
                     entry.tmdbRating != null && entry.tmdbRating > 0 -> "TMDB ★ ${String.format("%.1f", entry.tmdbRating)}"
                     entry.rating != null && entry.rating > 0 -> "NeoDB ★ ${entry.rating}"
@@ -242,7 +266,6 @@ private fun SearchResultCard(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                // 显示 IMDb ID 和 TMDB ID
                 if (entry.imdbId != null || entry.tmdbId != null) {
                     val idText = buildString {
                         if (entry.imdbId != null) append("IMDb: ${entry.imdbId}")
@@ -257,18 +280,42 @@ private fun SearchResultCard(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                if (entry.brief.isNotEmpty()) {
-                    Text(
-                        text = entry.brief.take(80),
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    if (isNeoDBAdded) {
+                        AssistChip(
+                            onClick = { },
+                            label = { Text("NeoDB ✓", style = MaterialTheme.typography.labelSmall) },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                labelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        )
+                    }
+                    if (isTraktWatched) {
+                        AssistChip(
+                            onClick = { },
+                            label = { Text("Trakt 已看", style = MaterialTheme.typography.labelSmall) },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                labelColor = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        )
+                    } else if (isTraktWatchlist) {
+                        AssistChip(
+                            onClick = { },
+                            label = { Text("Trakt 想看", style = MaterialTheme.typography.labelSmall) },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                labelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        )
+                    }
                 }
             }
 
-            // 操作菜单
             Box {
                 IconButton(onClick = { menuExpanded = true }) {
                     Icon(
@@ -281,37 +328,54 @@ private fun SearchResultCard(
                     onDismissRequest = { menuExpanded = false }
                 ) {
                     DropdownMenuItem(
-                        text = { Text("添加到想看") },
+                        text = { Text(if (isNeoDBAdded) "NeoDB ✓ 已添加" else "添加到想看 (NeoDB)") },
                         onClick = {
                             menuExpanded = false
-                            onAddToShelf("wishlist")
+                            if (!isNeoDBAdded) onAddToShelf("wishlist")
                         },
-                        leadingIcon = { Icon(Icons.Default.Add, null) }
+                        leadingIcon = { Icon(Icons.Default.Add, null) },
+                        enabled = !isNeoDBAdded
                     )
                     DropdownMenuItem(
-                        text = { Text("添加到在看") },
+                        text = { Text(if (isNeoDBAdded) "NeoDB ✓ 已添加" else "添加到在看 (NeoDB)") },
                         onClick = {
                             menuExpanded = false
-                            onAddToShelf("progress")
+                            if (!isNeoDBAdded) onAddToShelf("progress")
                         },
-                        leadingIcon = { Icon(Icons.Default.Add, null) }
+                        leadingIcon = { Icon(Icons.Default.Add, null) },
+                        enabled = !isNeoDBAdded
                     )
                     DropdownMenuItem(
-                        text = { Text("添加到看过") },
-                        onClick = {
-                            menuExpanded = false
-                            onAddToShelf("complete")
-                        },
-                        leadingIcon = { Icon(Icons.Default.Add, null) }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("评分") },
+                        text = { Text("评分 (NeoDB)") },
                         onClick = {
                             menuExpanded = false
                             onRate()
                         },
                         leadingIcon = { Icon(Icons.Default.Star, null) }
                     )
+
+                    if (isMovieOrTv) {
+                        Divider(modifier = Modifier.padding(vertical = 4.dp))
+
+                        DropdownMenuItem(
+                            text = { Text(if (isTraktWatchlist) "Trakt ✓ 已在想看" else "标记想看 (Trakt)") },
+                            onClick = {
+                                menuExpanded = false
+                                if (!isTraktWatchlist) onAddTraktWatchlist()
+                            },
+                            leadingIcon = { Icon(Icons.Default.Add, null) },
+                            enabled = !isTraktWatchlist && !isTraktWatched
+                        )
+                        DropdownMenuItem(
+                            text = { Text(if (isTraktWatched) "Trakt ✓ 已看" else "标记已看 (Trakt)") },
+                            onClick = {
+                                menuExpanded = false
+                                if (!isTraktWatched) onAddTraktHistory()
+                            },
+                            leadingIcon = { Icon(Icons.Default.Add, null) },
+                            enabled = !isTraktWatched
+                        )
+                    }
                 }
             }
         }

@@ -82,6 +82,12 @@ interface TraktApiService {
         @Header("Authorization") token: String,
         @Body request: TraktSyncRequest
     ): TraktSyncResponse
+
+    @POST("sync/watchlist")
+    suspend fun addToWatchlist(
+        @Header("Authorization") token: String,
+        @Body request: TraktSyncRequest
+    ): TraktSyncResponse
     
     // ========== 用户资料 ==========
     
