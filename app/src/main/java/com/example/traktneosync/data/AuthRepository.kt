@@ -45,6 +45,8 @@ class AuthRepository @Inject constructor(
 
         // 深色模式偏好
         val DARK_THEME = stringPreferencesKey("dark_theme")
+
+        val DISCOVER_SECTION_PREFS = stringPreferencesKey("discover_section_prefs")
     }
     
     // ========== Trakt Auth ==========
@@ -195,6 +197,26 @@ class AuthRepository @Inject constructor(
     suspend fun setDarkTheme(mode: String) {
         dataStore.edit { prefs ->
             prefs[Keys.DARK_THEME] = mode
+        }
+    }
+
+    // ========== 发现页栏目开关 ==========
+
+    val discoverSectionPrefs: Flow<Map<String, Boolean>> = dataStore.data.map { prefs ->
+        val raw = prefs[Keys.DISCOVER_SECTION_PREFS] ?: ""
+        if (raw.isBlank()) emptyMap()
+        else raw.split(",").mapNotNull { pair ->
+            val parts = pair.split("=", limit = 2)
+            if (parts.size == 2) {
+                val value = parts[1].toBooleanStrictOrNull() ?: return@mapNotNull null
+                parts[0] to value
+            } else null
+        }.toMap()
+    }
+
+    suspend fun setDiscoverSectionPrefs(prefs: Map<String, Boolean>) {
+        dataStore.edit { ds ->
+            ds[Keys.DISCOVER_SECTION_PREFS] = prefs.entries.joinToString(",") { "${it.key}=${it.value}" }
         }
     }
 }

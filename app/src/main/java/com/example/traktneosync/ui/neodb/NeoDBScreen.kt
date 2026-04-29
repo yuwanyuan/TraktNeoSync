@@ -1,5 +1,10 @@
 package com.example.traktneosync.ui.neodb
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -8,12 +13,16 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -72,13 +81,15 @@ fun NeoDBScreen(
                 }
             }
 
-            IconButton(onClick = onNavigateToSync, enabled = uiState.isAuthenticated) {
-                Icon(
-                    Icons.Default.Sync,
-                    contentDescription = "同步",
-                    modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onNavigateToSync, enabled = uiState.isAuthenticated) {
+                    Icon(
+                        Icons.Default.Sync,
+                        contentDescription = "同步",
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
 
@@ -124,9 +135,9 @@ fun NeoDBScreen(
             }
             uiState.selectedTab == NeoDBTab.DISCOVER -> {
                 DiscoverContent(
-                    movies = uiState.trendingMovies,
-                    tv = uiState.trendingTV,
-                    onEntryClick = onNavigateToEntry
+                    uiState = uiState,
+                    onEntryClick = onNavigateToEntry,
+                    onToggleSection = { viewModel.toggleSection(it) }
                 )
             }
             uiState.selectedTab is NeoDBTab.ShelfTab -> {
@@ -165,59 +176,72 @@ fun NeoDBScreen(
 
 @Composable
 private fun DiscoverContent(
-    movies: List<NeoDBEntry>,
-    tv: List<NeoDBEntry>,
-    onEntryClick: (NeoDBEntry) -> Unit
+    uiState: NeoDBUiState,
+    onEntryClick: (NeoDBEntry) -> Unit,
+    onToggleSection: (DiscoverSection) -> Unit
 ) {
+    var showSettings by remember { mutableStateOf(false) }
+
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        if (movies.isNotEmpty()) {
-            item {
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    text = "热门电影",
-                    style = MaterialTheme.typography.titleMedium,
+                    text = "发现",
+                    style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold
                 )
-            }
-            item {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    items(movies, key = { it.uuid }) { entry ->
-                        TrendingCard(
-                            entry = entry,
-                            onClick = { onEntryClick(entry) }
-                        )
-                    }
+                IconButton(onClick = { showSettings = !showSettings }) {
+                    Icon(
+                        Icons.Default.Settings,
+                        contentDescription = "栏目设置",
+                        modifier = Modifier.size(20.dp),
+                        tint = if (showSettings) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
 
-        if (tv.isNotEmpty()) {
-            item {
-                Text(
-                    text = "热门剧集",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+        item {
+            AnimatedVisibility(
+                visible = showSettings,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                SectionSettingsCard(
+                    sectionEnabled = uiState.sectionEnabled,
+                    onToggle = onToggleSection
                 )
             }
-            item {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    items(tv, key = { it.uuid }) { entry ->
-                        TrendingCard(
-                            entry = entry,
-                            onClick = { onEntryClick(entry) }
-                        )
-                    }
+        }
+
+        DiscoverSection.entries.forEach { section ->
+            val enabled = uiState.sectionEnabled[section.key] ?: section.defaultEnabled
+            val entries = uiState.trendingData[section.key] ?: emptyList()
+
+            if (enabled && entries.isNotEmpty()) {
+                item {
+                    SectionRow(
+                        title = section.label,
+                        entries = entries,
+                        onEntryClick = onEntryClick
+                    )
                 }
             }
         }
 
-        if (movies.isEmpty() && tv.isEmpty()) {
+        val hasAnyContent = DiscoverSection.entries.any { section ->
+            (uiState.sectionEnabled[section.key] ?: section.defaultEnabled) &&
+                    (uiState.trendingData[section.key]?.isNotEmpty() == true)
+        }
+
+        if (!hasAnyContent && uiState.trendingData.isNotEmpty()) {
             item {
                 Box(
                     modifier = Modifier
@@ -237,42 +261,117 @@ private fun DiscoverContent(
 }
 
 @Composable
+private fun SectionSettingsCard(
+    sectionEnabled: Map<String, Boolean>,
+    onToggle: (DiscoverSection) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = "栏目显示设置",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            DiscoverSection.entries.forEach { section ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 2.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = section.label,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Switch(
+                        checked = sectionEnabled[section.key] ?: section.defaultEnabled,
+                        onCheckedChange = { onToggle(section) },
+                        modifier = Modifier.height(24.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionRow(
+    title: String,
+    entries: List<NeoDBEntry>,
+    onEntryClick: (NeoDBEntry) -> Unit
+) {
+    Column {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            items(entries, key = { it.uuid }) { entry ->
+                TrendingCard(
+                    entry = entry,
+                    onClick = { onEntryClick(entry) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun TrendingCard(
     entry: NeoDBEntry,
     onClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
-            .width(110.dp)
+            .width(100.dp)
             .clickable(onClick = onClick)
     ) {
         Column {
-            if (entry.coverImageUrl != null) {
-                AsyncImage(
-                    model = entry.coverImageUrl,
-                    contentDescription = entry.displayTitle,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(155.dp)
-                        .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(155.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = entry.category.take(1).uppercase(),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(140.dp)
+                    .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (entry.coverImageUrl != null) {
+                    AsyncImage(
+                        model = entry.coverImageUrl,
+                        contentDescription = entry.displayTitle,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
                     )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = entry.category.take(1).uppercase(),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
-            Column(modifier = Modifier.padding(8.dp)) {
+            Column(modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp)) {
                 Text(
                     text = entry.displayTitle,
                     style = MaterialTheme.typography.bodySmall,
