@@ -46,6 +46,9 @@ class AuthRepository @Inject constructor(
         // 深色模式偏好
         val DARK_THEME = stringPreferencesKey("dark_theme")
 
+        // 评分来源偏好 (tmdb / imdb)
+        val RATING_SOURCE = stringPreferencesKey("rating_source")
+
         val DISCOVER_SECTION_PREFS = stringPreferencesKey("discover_section_prefs")
     }
     
@@ -197,6 +200,16 @@ class AuthRepository @Inject constructor(
     suspend fun setDarkTheme(mode: String) {
         dataStore.edit { prefs ->
             prefs[Keys.DARK_THEME] = mode
+        }
+    }
+
+    // ========== 评分来源偏好 ==========
+
+    val ratingSource: Flow<String?> = dataStore.data.map { it[Keys.RATING_SOURCE] }
+
+    suspend fun setRatingSource(source: String) {
+        dataStore.edit { prefs ->
+            prefs[Keys.RATING_SOURCE] = source
         }
     }
 

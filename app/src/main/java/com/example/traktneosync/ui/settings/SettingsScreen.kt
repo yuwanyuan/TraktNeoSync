@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VpnKeyOff
@@ -98,7 +99,10 @@ private fun SettingsMainScreen(
             if (uiState.neodbConnected) add("NeoDB✓")
         }.ifEmpty { listOf("未连接") }.joinToString(" · ")
 
-        val displaySummary = if (uiState.tmdbApiKey.isNotEmpty()) "TMDB✓" else "未配置"
+        val displaySummary = buildList {
+            if (uiState.tmdbApiKey.isNotEmpty()) add("TMDB✓")
+            add(if (uiState.ratingSource == "imdb") "IMDB评分" else "TMDB评分")
+        }.joinToString(" · ")
 
         LazyColumn(
             modifier = Modifier
@@ -176,13 +180,20 @@ private fun SettingsMainScreen(
                     enter = expandVertically(),
                     exit = shrinkVertically()
                 ) {
-                    TmdbKeyCard(
-                        currentKey = uiState.tmdbApiKey,
-                        keyTesting = uiState.tmdbKeyTesting,
-                        keyValid = uiState.tmdbKeyValid,
-                        onSave = { viewModel.saveTmdbApiKey(it) },
-                        onTest = { viewModel.testTmdbApiKey(it) }
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        TmdbKeyCard(
+                            currentKey = uiState.tmdbApiKey,
+                            keyTesting = uiState.tmdbKeyTesting,
+                            keyValid = uiState.tmdbKeyValid,
+                            onSave = { viewModel.saveTmdbApiKey(it) },
+                            onTest = { viewModel.testTmdbApiKey(it) }
+                        )
+
+                        RatingSourceCard(
+                            currentSource = uiState.ratingSource,
+                            onSourceChange = { viewModel.setRatingSource(it) }
+                        )
+                    }
                 }
             }
 
@@ -682,6 +693,109 @@ private fun LogLevelCard(onLogLevelChange: (LogLevel) -> Unit) {
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RatingSourceCard(
+    currentSource: String,
+    onSourceChange: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val sources = listOf(
+        "tmdb" to "TMDB",
+        "imdb" to "IMDB"
+    )
+    val currentLabel = sources.find { it.first == currentSource }?.second ?: "TMDB"
+
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .background(MaterialTheme.colorScheme.primary)
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = "评分来源",
+                        modifier = Modifier.size(36.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "详情页评分来源",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "选择详情页显示的评分数据源",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = it }
+                ) {
+                    OutlinedTextField(
+                        value = currentLabel,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("当前来源") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        sources.forEach { (code, label) ->
+                            DropdownMenuItem(
+                                text = {
+                                    Column {
+                                        Text(
+                                            text = label,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = if (code == currentSource) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                        Text(
+                                            text = when (code) {
+                                                "tmdb" -> "来自 TMDB API 的评分"
+                                                "imdb" -> "来自 OMDB API 的 IMDB 评分"
+                                                else -> ""
+                                            },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                },
+                                onClick = {
+                                    onSourceChange(code)
+                                    expanded = false
+                                }
                             )
                         }
                     }

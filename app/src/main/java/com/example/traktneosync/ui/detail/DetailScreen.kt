@@ -60,6 +60,7 @@ fun DetailScreen(
     val context = LocalContext.current
 
     LaunchedEffect(title, year, type, imdbId, tmdbId) {
+        viewModel.loadRatingSource()
         viewModel.loadNeoDBReviews(title, year, type, imdbId, tmdbId)
         if (tmdbId != null && tmdbId > 0) {
             viewModel.loadTmdbDetails(tmdbId, type)
@@ -380,7 +381,8 @@ fun DetailScreen(
                     }
                 }
 
-                if (uiState.imdbRating != null || uiState.neoDBRating != null) {
+                val showExternalRating = if (uiState.ratingSource == "imdb") uiState.imdbRating != null else uiState.tmdbRating != null
+                if (showExternalRating || uiState.neoDBRating != null) {
                     item {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
@@ -395,7 +397,7 @@ fun DetailScreen(
                                 horizontalArrangement = Arrangement.SpaceEvenly,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                if (uiState.imdbRating != null) {
+                                if (uiState.ratingSource == "imdb" && uiState.imdbRating != null) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Icon(
@@ -417,8 +419,30 @@ fun DetailScreen(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
+                                } else if (uiState.ratingSource == "tmdb" && uiState.tmdbRating != null) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.Star,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = "%.1f".format(uiState.tmdbRating),
+                                                style = MaterialTheme.typography.titleLarge,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        Text(
+                                            text = "TMDB${uiState.tmdbVoteCount?.let { " · ${it}人评" } ?: ""}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
-                                if (uiState.imdbRating != null && uiState.neoDBRating != null) {
+                                if (showExternalRating && uiState.neoDBRating != null) {
                                     Box(
                                         modifier = Modifier
                                             .height(32.dp)

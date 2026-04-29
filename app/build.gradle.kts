@@ -40,7 +40,7 @@ android {
                 ?: localProps.getProperty("SIGNING_KEY_ALIAS", "traktneosync")
             keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
                 ?: localProps.getProperty("SIGNING_KEY_PASSWORD", "")
-            storeFile = file(System.getenv("KEYSTORE_PATH") ?: "traktneosync.keystore")
+            storeFile = file(System.getenv("KEYSTORE_PATH") ?: "release.keystore")
             storePassword = System.getenv("SIGNING_STORE_PASSWORD")
                 ?: localProps.getProperty("SIGNING_STORE_PASSWORD", "")
         }

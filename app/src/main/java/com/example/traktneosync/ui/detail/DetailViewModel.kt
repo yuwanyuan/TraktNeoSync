@@ -216,6 +216,13 @@ class DetailViewModel @Inject constructor(
         }
     }
 
+    fun loadRatingSource() {
+        viewModelScope.launch {
+            val source = authRepository.ratingSource.first() ?: "tmdb"
+            _uiState.update { it.copy(ratingSource = source) }
+        }
+    }
+
     private fun isMovieType(type: String): Boolean {
         return type.equals("电影", ignoreCase = false) ||
                 type.equals("movie", ignoreCase = true) ||
@@ -418,6 +425,7 @@ data class DetailUiState(
     val tmdbVoteCount: Int? = null,
     val imdbRating: Float? = null,
     val imdbVoteCount: Int? = null,
+    val ratingSource: String = "tmdb",
     val neoDBRating: Float? = null,
     val neoDBRatingCount: Int = 0,
     val selectedImageUrl: String? = null,

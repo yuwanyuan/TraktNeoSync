@@ -64,6 +64,7 @@ class SettingsViewModel @Inject constructor(
                 authRepository.preferredLanguage,
                 authRepository.darkTheme,
                 authRepository.neodbManualInstance,
+                authRepository.ratingSource,
                 proxyRepository.proxyConfig
             ) { values: Array<Any?> ->
                 val traktToken = values[0] as? String
@@ -74,7 +75,8 @@ class SettingsViewModel @Inject constructor(
                 val lang = values[5] as? String
                 val dark = values[6] as? String
                 val neodbInstance = values[7] as? String
-                val proxyCfg = values[8] as? ProxyConfig ?: ProxyConfig()
+                val ratingSrc = values[8] as? String
+                val proxyCfg = values[9] as? ProxyConfig ?: ProxyConfig()
                 _uiState.value.copy(
                     traktConnected = traktToken != null,
                     traktUsername = traktUser,
@@ -84,6 +86,7 @@ class SettingsViewModel @Inject constructor(
                     preferredLanguage = lang ?: "zh-CN",
                     darkThemeMode = dark ?: "system",
                     neodbInstance = neodbInstance ?: "",
+                    ratingSource = ratingSrc ?: "tmdb",
                     proxyConfig = proxyCfg
                 )
             }.collect { state ->
@@ -234,6 +237,13 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setRatingSource(source: String) {
+        viewModelScope.launch {
+            authRepository.setRatingSource(source)
+            AppLogger.info(TAG, "评分来源切换为 $source")
+        }
+    }
+
     fun setLogLevel(level: LogLevel) {
         AppLogger.setLogLevel(level)
         AppLogger.info(TAG, "日志级别切换为 ${level.name}")
@@ -350,6 +360,7 @@ data class SettingsUiState(
     val tmdbKeyValid: Boolean? = null,
     val preferredLanguage: String = "zh-CN",
     val darkThemeMode: String = "system",
+    val ratingSource: String = "tmdb",
     val cacheSize: String = "0 B",
     val proxyConfig: ProxyConfig = ProxyConfig(),
     val proxyTesting: Boolean = false,
