@@ -3,6 +3,7 @@ package com.example.traktneosync.ui.detail
 import android.app.DownloadManager
 import android.content.Context
 import android.net.Uri
+import android.os.Build
 import android.os.Environment
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -27,11 +28,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -62,7 +66,6 @@ fun DetailScreen(
         }
     }
 
-    // 图片查看器 Dialog
     val selectedUrl = uiState.selectedImageUrl
     if (selectedUrl != null) {
         Dialog(
@@ -80,7 +83,6 @@ fun DetailScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Fit
                 )
-                // 关闭按钮
                 IconButton(
                     onClick = { viewModel.dismissImageViewer() },
                     modifier = Modifier
@@ -94,7 +96,6 @@ fun DetailScreen(
                         modifier = Modifier.size(28.dp)
                     )
                 }
-                // 保存按钮
                 TextButton(
                     onClick = { saveImage(context, selectedUrl) },
                     modifier = Modifier
@@ -107,7 +108,6 @@ fun DetailScreen(
         }
     }
 
-    // 评分对话框
     if (uiState.showRatingDialog) {
         var ratingValue by remember(uiState.currentMark) {
             mutableFloatStateOf(
@@ -146,7 +146,6 @@ fun DetailScreen(
                             CircularProgressIndicator(modifier = Modifier.size(24.dp))
                         }
                     } else {
-                        // 评分 Slider
                         Column {
                             Text(
                                 text = "${ratingValue.toInt()} 分",
@@ -159,7 +158,7 @@ fun DetailScreen(
                                 value = ratingValue,
                                 onValueChange = { ratingValue = it },
                                 valueRange = 1f..10f,
-                                steps = 8, // 1-10 共10个刻度，steps=8表示中间有8个步进点
+                                steps = 8,
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Row(
@@ -171,7 +170,6 @@ fun DetailScreen(
                             }
                         }
 
-                        // 评论输入
                         OutlinedTextField(
                             value = commentText,
                             onValueChange = { commentText = it },
@@ -181,7 +179,6 @@ fun DetailScreen(
                             maxLines = 4
                         )
 
-                        // 同步到长毛象开关
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -205,7 +202,6 @@ fun DetailScreen(
                         }
                     }
 
-                    // 错误提示
                     val ratingError = uiState.ratingSubmitError
                     if (ratingError != null) {
                         Text(
@@ -215,7 +211,6 @@ fun DetailScreen(
                         )
                     }
 
-                    // 按钮
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End,
@@ -254,449 +249,498 @@ fun DetailScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("详情") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
-                    }
-                }
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (posterUrl != null) {
+            AsyncImage(
+                model = posterUrl,
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) 25.dp else 0.dp),
+                contentScale = ContentScale.Crop,
+                alpha = 0.35f
             )
         }
-    ) { paddingValues ->
-        LazyColumn(
+
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // 封面 + 基本信息（横向排列，减少顶部留白）
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    // 左侧封面
-                    Box(
-                        modifier = Modifier
-                            .size(width = 120.dp, height = 180.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (posterUrl != null) {
-                            AsyncImage(
-                                model = posterUrl,
-                                contentDescription = title,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = type.take(1).uppercase(),
-                                    style = MaterialTheme.typography.displayMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = type,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                    // 右侧信息
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 3,
-                            overflow = TextOverflow.Ellipsis
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Black.copy(alpha = 0.2f),
+                            Color.Black.copy(alpha = 0.6f),
+                            MaterialTheme.colorScheme.background.copy(alpha = 0.95f)
                         )
-                        if (year != null) {
-                            Text(
-                                text = "$year",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        AssistChip(
-                            onClick = { },
-                            label = { Text(type) }
-                        )
-                        if (plays != null && plays > 0) {
-                            Text(
-                                text = "已观看 $plays ${if (type == "剧集") "集" else "次"}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                }
-            }
+                    )
+                )
+        )
 
-            // 评分信息
-            if (uiState.imdbRating != null || uiState.neoDBRating != null) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("详情") },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        titleContentColor = if (posterUrl != null) Color.White else MaterialTheme.colorScheme.onSurface,
+                        navigationIconContentColor = if (posterUrl != null) Color.White else MaterialTheme.colorScheme.onSurface
+                    )
+                )
+            },
+            containerColor = Color.Transparent
+        ) { paddingValues ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(horizontal = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
                 item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Row(
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Box(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            verticalAlignment = Alignment.CenterVertically
+                                .size(width = 120.dp, height = 180.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center
                         ) {
-                            if (uiState.imdbRating != null) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Default.Star,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = "%.1f".format(uiState.imdbRating),
-                                            style = MaterialTheme.typography.titleLarge,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                    Text(
-                                        text = "IMDB${uiState.imdbVoteCount?.let { " · ${it}人评" } ?: ""}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                            if (uiState.imdbRating != null && uiState.neoDBRating != null) {
-                                Box(
-                                    modifier = Modifier
-                                        .height(32.dp)
-                                        .width(1.dp)
-                                        .background(MaterialTheme.colorScheme.outlineVariant)
+                            if (posterUrl != null) {
+                                AsyncImage(
+                                    model = posterUrl,
+                                    contentDescription = title,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
                                 )
-                            }
-                            if (uiState.neoDBRating != null) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier.clickable {
-                                        viewModel.openRatingDialog()
-                                    }
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Default.Star,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = "%.1f".format(uiState.neoDBRating),
-                                            style = MaterialTheme.typography.titleLarge,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
+                            } else {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text(
-                                        text = "NeoDB${if (uiState.neoDBRatingCount > 0) " · ${uiState.neoDBRatingCount}人评" else ""}",
+                                        text = type.take(1).uppercase(),
+                                        style = MaterialTheme.typography.displayMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = type,
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
                         }
-                    }
-                }
-            }
-
-            // ID 信息
-            item {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
-                    ) {
-                        if (imdbId != null) {
-                            InfoRow("IMDB ID", imdbId)
-                        }
-                        if (tmdbId != null) {
-                            InfoRow("TMDB ID", tmdbId.toString())
-                        }
-                    }
-                }
-            }
-
-            // 简介
-            val overview = uiState.overview
-            if (!overview.isNullOrBlank()) {
-                item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                .padding(vertical = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Text(
-                                text = "简介",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
+                                text = title,
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis,
+                                color = if (posterUrl != null) Color.White else MaterialTheme.colorScheme.onSurface
                             )
-                            Text(
-                                text = overview,
-                                style = MaterialTheme.typography.bodyMedium
+                            if (year != null) {
+                                Text(
+                                    text = "$year",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = if (posterUrl != null) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            AssistChip(
+                                onClick = { },
+                                label = { Text(type) },
+                                colors = AssistChipDefaults.assistChipColors(
+                                    containerColor = Color.White.copy(alpha = 0.15f),
+                                    labelColor = Color.White
+                                )
                             )
-                        }
-                    }
-                }
-            }
-
-            // 相关图片
-            val allImages = (uiState.backdropUrls + uiState.posterUrls).filter { it.isNotBlank() }.distinct()
-            if (allImages.isNotEmpty()) {
-                item {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            text = "相关图片",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            items(
-                            items = allImages,
-                            key = { it.takeLast(30) }
-                        ) { url ->
-                                AsyncImage(
-                                    model = url,
-                                    contentDescription = null,
-                                    modifier = Modifier
-                                        .width(280.dp)
-                                        .height(160.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                                        .clickable { viewModel.selectImage(url) },
-                                    contentScale = ContentScale.Crop
+                            if (plays != null && plays > 0) {
+                                Text(
+                                    text = "已观看 $plays ${if (type == "剧集") "集" else "次"}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = if (posterUrl != null) Color.White.copy(alpha = 0.9f) else MaterialTheme.colorScheme.primary
                                 )
                             }
                         }
                     }
                 }
-            }
 
-            // 详情加载中
-            if (uiState.isLoadingDetails) {
-                item {
-                    Box(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                if (uiState.imdbRating != null || uiState.neoDBRating != null) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (uiState.imdbRating != null) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.Star,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = "%.1f".format(uiState.imdbRating),
+                                                style = MaterialTheme.typography.titleLarge,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        Text(
+                                            text = "IMDB${uiState.imdbVoteCount?.let { " · ${it}人评" } ?: ""}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                                if (uiState.imdbRating != null && uiState.neoDBRating != null) {
+                                    Box(
+                                        modifier = Modifier
+                                            .height(32.dp)
+                                            .width(1.dp)
+                                            .background(MaterialTheme.colorScheme.outlineVariant)
+                                    )
+                                }
+                                if (uiState.neoDBRating != null) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier.clickable {
+                                            viewModel.openRatingDialog()
+                                        }
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.Star,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = "%.1f".format(uiState.neoDBRating),
+                                                style = MaterialTheme.typography.titleLarge,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        Text(
+                                            text = "NeoDB${if (uiState.neoDBRatingCount > 0) " · ${uiState.neoDBRatingCount}人评" else ""}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
-            }
 
-            // NeoDB 评论区
-            item {
-                Text(
-                    text = "NeoDB 评论",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            if (imdbId != null) {
+                                InfoRow("IMDB ID", imdbId)
+                            }
+                            if (tmdbId != null) {
+                                InfoRow("TMDB ID", tmdbId.toString())
+                            }
+                        }
+                    }
+                }
 
-            when {
-                uiState.isLoadingReviews && uiState.reviews.isEmpty() -> {
+                val overview = uiState.overview
+                if (!overview.isNullOrBlank()) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "简介",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = overview,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                        }
+                    }
+                }
+
+                val allImages = (uiState.backdropUrls + uiState.posterUrls).filter { it.isNotBlank() }.distinct()
+                if (allImages.isNotEmpty()) {
+                    item {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                text = "相关图片",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                items(
+                                    items = allImages,
+                                    key = { it.takeLast(30) }
+                                ) { url ->
+                                    AsyncImage(
+                                        model = url,
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .width(280.dp)
+                                            .height(160.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                                            .clickable { viewModel.selectImage(url) },
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (uiState.isLoadingDetails) {
                     item {
                         Box(
                             modifier = Modifier.fillMaxWidth(),
                             contentAlignment = Alignment.Center
                         ) {
-                            CircularProgressIndicator()
-                        }
-                    }
-                }
-                uiState.reviewError != null && uiState.reviews.isEmpty() -> {
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer
-                            )
-                        ) {
-                            Text(
-                                text = uiState.reviewError ?: "加载失败",
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                modifier = Modifier.padding(16.dp)
-                            )
-                        }
-                    }
-                }
-                uiState.reviews.isEmpty() -> {
-                    item {
-                        Card(modifier = Modifier.fillMaxWidth()) {
-                            Text(
-                                text = "暂无评论",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                            )
-                        }
-                    }
-                }
-                else -> {
-                    items(
-                        count = uiState.reviews.size,
-                        key = { index -> "${index}_" + uiState.reviews[index].username + uiState.reviews[index].date }
-                    ) { index ->
-                        ReviewCard(review = uiState.reviews[index])
-                    }
-                }
-            }
-
-            // 加载更多
-            if (uiState.hasMoreReviews || uiState.isLoadingMore) {
-                item {
-                    Box(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (uiState.isLoadingMore) {
                             CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                        } else {
-                            OutlinedButton(onClick = { viewModel.loadMoreReviews() }) {
-                                Text("加载更多")
+                        }
+                    }
+                }
+
+                item {
+                    Text(
+                        text = "NeoDB 评论",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                when {
+                    uiState.isLoadingReviews && uiState.reviews.isEmpty() -> {
+                        item {
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator()
+                            }
+                        }
+                    }
+                    uiState.reviewError != null && uiState.reviews.isEmpty() -> {
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer
+                                )
+                            ) {
+                                Text(
+                                    text = uiState.reviewError ?: "加载失败",
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    modifier = Modifier.padding(16.dp)
+                                )
+                            }
+                        }
+                    }
+                    uiState.reviews.isEmpty() -> {
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+                                )
+                            ) {
+                                Text(
+                                    text = "暂无评论",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+                    else -> {
+                        items(
+                            count = uiState.reviews.size,
+                            key = { index -> "${index}_" + uiState.reviews[index].username + uiState.reviews[index].date }
+                        ) { index ->
+                            ReviewCard(review = uiState.reviews[index])
+                        }
+                    }
+                }
+
+                if (uiState.hasMoreReviews || uiState.isLoadingMore) {
+                    item {
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (uiState.isLoadingMore) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                            } else {
+                                OutlinedButton(onClick = { viewModel.loadMoreReviews() }) {
+                                    Text("加载更多")
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            item { Spacer(modifier = Modifier.height(16.dp)) }
+                item { Spacer(modifier = Modifier.height(16.dp)) }
+            }
         }
     }
 }
 
 @Composable
 private fun ReviewCard(review: ReviewItem) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+        )
     ) {
-        // 用户信息和评分
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (review.avatarUrl != null) {
-                    AsyncImage(
-                        model = review.avatarUrl,
-                        contentDescription = review.username,
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(RoundedCornerShape(16.dp)),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(MaterialTheme.colorScheme.primaryContainer),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = review.username.take(1).uppercase(),
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            style = MaterialTheme.typography.labelMedium
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (review.avatarUrl != null) {
+                        AsyncImage(
+                            model = review.avatarUrl,
+                            contentDescription = review.username,
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(16.dp)),
+                            contentScale = ContentScale.Crop
                         )
-                    }
-                }
-                Column {
-                    Text(
-                        text = review.username,
-                        style = MaterialTheme.typography.titleSmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (review.relativeDate.isNotBlank()) {
-                        Text(
-                            text = review.relativeDate,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-            if (review.rating != null) {
-                AssistChip(
-                    onClick = { },
-                    label = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Star,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(2.dp))
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(MaterialTheme.colorScheme.primaryContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
                             Text(
-                                text = "${review.rating}",
+                                text = review.username.take(1).uppercase(),
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 style = MaterialTheme.typography.labelMedium
                             )
                         }
                     }
+                    Column {
+                        Text(
+                            text = review.username,
+                            style = MaterialTheme.typography.titleSmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (review.relativeDate.isNotBlank()) {
+                            Text(
+                                text = review.relativeDate,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                if (review.rating != null) {
+                    AssistChip(
+                        onClick = { },
+                        label = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Star,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text(
+                                    text = "${review.rating}",
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                            }
+                        }
+                    )
+                }
+            }
+
+            if (review.content.isNotBlank()) {
+                Text(
+                    text = review.content,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(start = 40.dp)
+                )
+            } else if (review.rating != null) {
+                Text(
+                    text = "（仅评分，无评论内容）",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 40.dp)
                 )
             }
         }
-
-        // 评论内容
-        if (review.content.isNotBlank()) {
-            Text(
-                text = review.content,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(start = 40.dp)
-            )
-        } else if (review.rating != null) {
-            Text(
-                text = "（仅评分，无评论内容）",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 40.dp)
-            )
-        }
-
-        Divider(
-            modifier = Modifier.padding(top = 4.dp),
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-        )
     }
 }
 

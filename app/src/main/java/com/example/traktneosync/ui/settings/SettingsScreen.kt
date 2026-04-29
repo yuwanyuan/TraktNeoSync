@@ -3,6 +3,9 @@ package com.example.traktneosync.ui.settings
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -19,6 +22,8 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VpnKeyOff
 import androidx.compose.material.icons.filled.VpnLock
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -85,6 +90,16 @@ private fun SettingsMainScreen(
             TopAppBar(title = { Text("设置") })
         }
     ) { paddingValues ->
+        var accountExpanded by remember { mutableStateOf(true) }
+        var displayExpanded by remember { mutableStateOf(true) }
+
+        val accountSummary = buildList {
+            if (uiState.traktConnected) add("Trakt✓")
+            if (uiState.neodbConnected) add("NeoDB✓")
+        }.ifEmpty { listOf("未连接") }.joinToString(" · ")
+
+        val displaySummary = if (uiState.tmdbApiKey.isNotEmpty()) "TMDB✓" else "未配置"
+
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -94,57 +109,81 @@ private fun SettingsMainScreen(
         ) {
             item { Spacer(modifier = Modifier.height(4.dp)) }
 
-            item { SectionTitle("账号绑定") }
-
             item {
-                AuthCard(
-                    title = "Trakt",
-                    icon = Icons.Default.PlayArrow,
-                    isConnected = uiState.traktConnected,
-                    username = uiState.traktUsername,
-                    isLoading = false,
-                    error = null,
-                    onConnect = { viewModel.connectTrakt() },
-                    onDisconnect = { viewModel.disconnectTrakt() },
-                    onClearError = {}
+                CollapsibleSectionTitle(
+                    title = "账号绑定",
+                    expanded = accountExpanded,
+                    onToggle = { accountExpanded = !accountExpanded },
+                    summary = accountSummary
                 )
             }
 
             item {
-                AuthCard(
-                    title = "NeoDB",
-                    icon = Icons.Default.AccountCircle,
-                    isConnected = uiState.neodbConnected,
-                    username = uiState.neodbUsername,
-                    isLoading = uiState.neodbLoading,
-                    error = uiState.neodbError,
-                    onConnect = { viewModel.connectNeoDB() },
-                    onDisconnect = { viewModel.disconnectNeoDB() },
-                    onClearError = { viewModel.clearNeoDBError() }
-                )
-            }
+                AnimatedVisibility(
+                    visible = accountExpanded,
+                    enter = expandVertically(),
+                    exit = shrinkVertically()
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        AuthCard(
+                            title = "Trakt",
+                            icon = Icons.Default.PlayArrow,
+                            isConnected = uiState.traktConnected,
+                            username = uiState.traktUsername,
+                            isLoading = false,
+                            error = null,
+                            onConnect = { viewModel.connectTrakt() },
+                            onDisconnect = { viewModel.disconnectTrakt() },
+                            onClearError = {}
+                        )
 
-            if (BuildConfig.NEODB_CLIENT_ID.isEmpty()) {
-                item {
-                    NeoDBCredentialCard(
-                        currentInstance = uiState.neodbInstance,
-                        onSave = { clientId, clientSecret, instance ->
-                            viewModel.saveNeoDBCredentials(clientId, clientSecret, instance)
+                        AuthCard(
+                            title = "NeoDB",
+                            icon = Icons.Default.AccountCircle,
+                            isConnected = uiState.neodbConnected,
+                            username = uiState.neodbUsername,
+                            isLoading = uiState.neodbLoading,
+                            error = uiState.neodbError,
+                            onConnect = { viewModel.connectNeoDB() },
+                            onDisconnect = { viewModel.disconnectNeoDB() },
+                            onClearError = { viewModel.clearNeoDBError() }
+                        )
+
+                        if (BuildConfig.NEODB_CLIENT_ID.isEmpty()) {
+                            NeoDBCredentialCard(
+                                currentInstance = uiState.neodbInstance,
+                                onSave = { clientId, clientSecret, instance ->
+                                    viewModel.saveNeoDBCredentials(clientId, clientSecret, instance)
+                                }
+                            )
                         }
-                    )
+                    }
                 }
             }
 
-            item { SectionTitle("影视显示") }
+            item {
+                CollapsibleSectionTitle(
+                    title = "影视显示",
+                    expanded = displayExpanded,
+                    onToggle = { displayExpanded = !displayExpanded },
+                    summary = displaySummary
+                )
+            }
 
             item {
-                TmdbKeyCard(
-                    currentKey = uiState.tmdbApiKey,
-                    keyTesting = uiState.tmdbKeyTesting,
-                    keyValid = uiState.tmdbKeyValid,
-                    onSave = { viewModel.saveTmdbApiKey(it) },
-                    onTest = { viewModel.testTmdbApiKey(it) }
-                )
+                AnimatedVisibility(
+                    visible = displayExpanded,
+                    enter = expandVertically(),
+                    exit = shrinkVertically()
+                ) {
+                    TmdbKeyCard(
+                        currentKey = uiState.tmdbApiKey,
+                        keyTesting = uiState.tmdbKeyTesting,
+                        keyValid = uiState.tmdbKeyValid,
+                        onSave = { viewModel.saveTmdbApiKey(it) },
+                        onTest = { viewModel.testTmdbApiKey(it) }
+                    )
+                }
             }
 
             item { SectionTitle("网络代理") }
@@ -282,6 +321,45 @@ private fun SectionTitle(title: String) {
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
     )
+}
+
+@Composable
+private fun CollapsibleSectionTitle(
+    title: String,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    summary: String? = null
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onToggle)
+            .padding(vertical = 8.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.weight(1f)
+        )
+        if (summary != null && !expanded) {
+            Text(
+                text = summary,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Icon(
+            imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+            contentDescription = if (expanded) "收起" else "展开",
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
