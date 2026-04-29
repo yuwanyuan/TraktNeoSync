@@ -72,6 +72,22 @@ data class NeoDBExternalResource(
     @SerializedName("url") val url: String
 )
 
+fun NeoDBEntry.extractImdbId(): String? {
+    return externalResources.map { it.url }.firstOrNull { url ->
+        url.contains("imdb.com", ignoreCase = true) || url.contains("imdb.org", ignoreCase = true)
+    }?.let { url ->
+        Regex("tt\\d+").find(url)?.value
+    }
+}
+
+fun NeoDBEntry.extractTmdbId(): Long? {
+    return externalResources.map { it.url }.firstOrNull { url ->
+        url.contains("themoviedb.org", ignoreCase = true) || url.contains("tmdb.org", ignoreCase = true)
+    }?.let { url ->
+        Regex("/(\\d+)(?:/|$)").find(url)?.groupValues?.get(1)?.toLongOrNull()
+    }
+}
+
 // ========== 书架模型 ==========
 
 data class NeoDBMark(

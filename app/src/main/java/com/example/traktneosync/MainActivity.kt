@@ -69,6 +69,8 @@ import androidx.navigation.compose.rememberNavController
 import com.example.traktneosync.data.AuthRepository
 import com.example.traktneosync.data.neodb.NeoDBOAuthManager
 import com.example.traktneosync.data.neodb.NeoDBEntry
+import com.example.traktneosync.data.neodb.extractImdbId
+import com.example.traktneosync.data.neodb.extractTmdbId
 import com.example.traktneosync.data.trakt.TraktOAuthManager
 import com.example.traktneosync.ui.detail.DetailScreen
 import com.example.traktneosync.ui.neodb.NeoDBScreen
@@ -362,15 +364,18 @@ fun TraktNeoSyncApp(
                             }
                         },
                         onNavigateToDetail = { mark ->
-                            val encodedTitle = java.net.URLEncoder.encode(mark.item.displayTitle, "UTF-8")
-                            val encodedPoster = java.net.URLEncoder.encode(mark.item.coverImageUrl ?: "_null_", "UTF-8")
-                            val type = when (mark.item.category) {
+                            val entry = mark.item
+                            val encodedTitle = java.net.URLEncoder.encode(entry.displayTitle, "UTF-8")
+                            val encodedPoster = java.net.URLEncoder.encode(entry.coverImageUrl ?: "_null_", "UTF-8")
+                            val type = when (entry.category) {
                                 "movie" -> "movie"
                                 "tv" -> "show"
                                 else -> "movie"
                             }
+                            val imdbId = entry.extractImdbId() ?: "_null_"
+                            val tmdbId = entry.extractTmdbId() ?: 0
                             navController.navigate(
-                                "detail/$type/$encodedTitle/0/_null_/_null_/$encodedPoster/0"
+                                "detail/$type/$encodedTitle/0/$imdbId/$tmdbId/$encodedPoster/0"
                             )
                         },
                         onNavigateToEntry = { entry ->
@@ -381,8 +386,10 @@ fun TraktNeoSyncApp(
                                 "tv" -> "show"
                                 else -> "movie"
                             }
+                            val imdbId = entry.extractImdbId() ?: "_null_"
+                            val tmdbId = entry.extractTmdbId() ?: 0
                             navController.navigate(
-                                "detail/$type/$encodedTitle/0/_null_/_null_/$encodedPoster/0"
+                                "detail/$type/$encodedTitle/0/$imdbId/$tmdbId/$encodedPoster/0"
                             )
                         }
                     )
@@ -407,8 +414,10 @@ fun TraktNeoSyncApp(
                             val encodedTitle = java.net.URLEncoder.encode(entry.displayTitle, "UTF-8")
                             val encodedPoster = java.net.URLEncoder.encode(entry.coverImageUrl ?: "_null_", "UTF-8")
                             val type = if (entry.category == "movie") "movie" else "show"
+                            val imdbId = entry.extractImdbId() ?: "_null_"
+                            val tmdbId = entry.extractTmdbId() ?: 0
                             navController.navigate(
-                                "detail/$type/$encodedTitle/0/_null_/_null_/$encodedPoster/0"
+                                "detail/$type/$encodedTitle/0/$imdbId/$tmdbId/$encodedPoster/0"
                             )
                         }
                     )
