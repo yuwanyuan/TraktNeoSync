@@ -338,18 +338,18 @@ fun TraktNeoSyncApp(
                         snackbarHostState = snackbarHostState,
                         onNavigateToMovieDetail = { movie ->
                             val encodedTitle = java.net.URLEncoder.encode(movie.title, "UTF-8")
-                            val encodedPoster = java.net.URLEncoder.encode(movie.posterUrl ?: "_null_", "UTF-8")
+                            val encodedPoster = java.net.URLEncoder.encode(movie.posterUrl ?: "", "UTF-8")
                             val imdbId = movie.imdbId?.takeIf { it.isNotBlank() } ?: "_null_"
                             navController.navigate(
-                                "detail/movie/$encodedTitle/${movie.year ?: 0}/$imdbId/${movie.tmdbId ?: 0}/$encodedPoster/${movie.plays}"
+                                "detail/movie/$encodedTitle/${movie.year ?: 0}/$imdbId/${movie.tmdbId ?: 0}/${movie.plays}?posterUrl=$encodedPoster"
                             )
                         },
                         onNavigateToShowDetail = { show ->
                             val encodedTitle = java.net.URLEncoder.encode(show.title, "UTF-8")
-                            val encodedPoster = java.net.URLEncoder.encode(show.posterUrl ?: "_null_", "UTF-8")
+                            val encodedPoster = java.net.URLEncoder.encode(show.posterUrl ?: "", "UTF-8")
                             val imdbId = show.imdbId?.takeIf { it.isNotBlank() } ?: "_null_"
                             navController.navigate(
-                                "detail/show/$encodedTitle/${show.year ?: 0}/$imdbId/${show.tmdbId ?: 0}/$encodedPoster/${show.plays}"
+                                "detail/show/$encodedTitle/${show.year ?: 0}/$imdbId/${show.tmdbId ?: 0}/${show.plays}?posterUrl=$encodedPoster"
                             )
                         }
                     )
@@ -359,7 +359,7 @@ fun TraktNeoSyncApp(
                         onNavigateToDetail = { mark ->
                             val entry = mark.item
                             val encodedTitle = java.net.URLEncoder.encode(entry.displayTitle, "UTF-8")
-                            val encodedPoster = java.net.URLEncoder.encode(entry.coverImageUrl ?: "_null_", "UTF-8")
+                            val encodedPoster = java.net.URLEncoder.encode(entry.coverImageUrl ?: "", "UTF-8")
                             val type = when (entry.category) {
                                 "movie" -> "movie"
                                 "tv" -> "show"
@@ -368,12 +368,12 @@ fun TraktNeoSyncApp(
                             val imdbId = entry.extractImdbId() ?: "_null_"
                             val tmdbId = entry.extractTmdbId() ?: 0
                             navController.navigate(
-                                "detail/$type/$encodedTitle/0/$imdbId/$tmdbId/$encodedPoster/0"
+                                "detail/$type/$encodedTitle/0/$imdbId/$tmdbId/0?posterUrl=$encodedPoster"
                             )
                         },
                         onNavigateToEntry = { entry ->
                             val encodedTitle = java.net.URLEncoder.encode(entry.displayTitle, "UTF-8")
-                            val encodedPoster = java.net.URLEncoder.encode(entry.coverImageUrl ?: "_null_", "UTF-8")
+                            val encodedPoster = java.net.URLEncoder.encode(entry.coverImageUrl ?: "", "UTF-8")
                             val type = when (entry.category) {
                                 "movie" -> "movie"
                                 "tv" -> "show"
@@ -382,7 +382,7 @@ fun TraktNeoSyncApp(
                             val imdbId = entry.extractImdbId() ?: "_null_"
                             val tmdbId = entry.extractTmdbId() ?: 0
                             navController.navigate(
-                                "detail/$type/$encodedTitle/0/$imdbId/$tmdbId/$encodedPoster/0"
+                                "detail/$type/$encodedTitle/0/$imdbId/$tmdbId/0?posterUrl=$encodedPoster"
                             )
                         }
                     )
@@ -391,12 +391,12 @@ fun TraktNeoSyncApp(
                     SearchScreen(
                         onNavigateToDetail = { entry ->
                             val encodedTitle = java.net.URLEncoder.encode(entry.displayTitle, "UTF-8")
-                            val encodedPoster = java.net.URLEncoder.encode(entry.coverImageUrl ?: "_null_", "UTF-8")
+                            val encodedPoster = java.net.URLEncoder.encode(entry.coverImageUrl ?: "", "UTF-8")
                             val type = if (entry.category == "movie") "movie" else "show"
                             val imdbId = entry.extractImdbId() ?: "_null_"
                             val tmdbId = entry.extractTmdbId() ?: 0
                             navController.navigate(
-                                "detail/$type/$encodedTitle/0/$imdbId/$tmdbId/$encodedPoster/0"
+                                "detail/$type/$encodedTitle/0/$imdbId/$tmdbId/0?posterUrl=$encodedPoster"
                             )
                         }
                     )
@@ -404,7 +404,7 @@ fun TraktNeoSyncApp(
                 composable(BottomNavItem.Settings.route) {
                     SettingsScreen()
                 }
-                composable("detail/{type}/{title}/{year}/{imdbId}/{tmdbId}/{posterUrl}/{plays}") { backStackEntry ->
+                composable("detail/{type}/{title}/{year}/{imdbId}/{tmdbId}/{plays}?posterUrl={posterUrl}") { backStackEntry ->
                     val type = backStackEntry.arguments?.getString("type") ?: "movie"
                     val title = backStackEntry.arguments?.getString("title") ?: ""
                     val year = backStackEntry.arguments?.getString("year")?.toIntOrNull()?.takeIf { it > 0 }
@@ -413,7 +413,7 @@ fun TraktNeoSyncApp(
                     }
                     val tmdbId = backStackEntry.arguments?.getString("tmdbId")?.toLongOrNull()?.takeIf { it > 0 }
                     val rawPosterUrl = backStackEntry.arguments?.getString("posterUrl")?.takeIf {
-                        it.isNotBlank() && it != "_null_" && it != "null"
+                        it.isNotBlank()
                     }
                     val posterUrl = rawPosterUrl?.let { java.net.URLDecoder.decode(it, "UTF-8") }
                     val plays = backStackEntry.arguments?.getString("plays")?.toIntOrNull()?.takeIf { it > 0 }
