@@ -44,7 +44,7 @@ jobs:
         if: github.event.inputs.build_type == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
         run: |
           if [ -n "${{ secrets.SIGNING_KEY_BASE64 }}" ]; then
-            echo "${{ secrets.SIGNING_KEY_BASE64 }}" | base64 -d > app/release.keystore
+            echo "${{ secrets.SIGNING_KEY_BASE64 }}" | base64 -d > app/traktneosync.keystore
             echo "Keystore decoded successfully"
           fi
 
