@@ -76,8 +76,6 @@ import com.example.traktneosync.ui.detail.DetailScreen
 import com.example.traktneosync.ui.neodb.NeoDBScreen
 import com.example.traktneosync.ui.settings.SettingsScreen
 import com.example.traktneosync.ui.search.SearchScreen
-import com.example.traktneosync.ui.sync.SyncScreen
-import com.example.traktneosync.ui.sync.SyncListItem
 import com.example.traktneosync.ui.trakt.TraktScreen
 import com.example.traktneosync.ui.theme.TraktNeoSyncTheme
 import com.example.traktneosync.util.AppLogger
@@ -358,11 +356,6 @@ fun TraktNeoSyncApp(
                 }
                 composable(BottomNavItem.NeoDB.route) {
                     NeoDBScreen(
-                        onNavigateToSync = {
-                            navController.navigate("sync") {
-                                launchSingleTop = true
-                            }
-                        },
                         onNavigateToDetail = { mark ->
                             val entry = mark.item
                             val encodedTitle = java.net.URLEncoder.encode(entry.displayTitle, "UTF-8")
@@ -390,20 +383,6 @@ fun TraktNeoSyncApp(
                             val tmdbId = entry.extractTmdbId() ?: 0
                             navController.navigate(
                                 "detail/$type/$encodedTitle/0/$imdbId/$tmdbId/$encodedPoster/0"
-                            )
-                        }
-                    )
-                }
-                composable("sync") {
-                    SyncScreen(
-                        onNavigateToDetail = { item ->
-                            val encodedTitle = java.net.URLEncoder.encode(item.title, "UTF-8")
-                            val encodedPoster = java.net.URLEncoder.encode(item.posterUrl ?: "_null_", "UTF-8")
-                            val type = if (item.type == "电影") "movie" else "show"
-                            val imdbId = item.traktItem.ids.imdb?.takeIf { it.isNotBlank() } ?: "_null_"
-                            val tmdbId = item.traktItem.ids.tmdb ?: 0
-                            navController.navigate(
-                                "detail/$type/$encodedTitle/${item.year ?: 0}/$imdbId/$tmdbId/$encodedPoster/0"
                             )
                         }
                     )

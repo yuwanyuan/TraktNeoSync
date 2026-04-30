@@ -39,7 +39,6 @@ import com.example.traktneosync.data.neodb.NeoDBMark
 @Composable
 fun NeoDBScreen(
     viewModel: NeoDBViewModel = hiltViewModel(),
-    onNavigateToSync: () -> Unit = {},
     onNavigateToDetail: (NeoDBMark) -> Unit = {},
     onNavigateToEntry: (NeoDBEntry) -> Unit = {}
 ) {
@@ -77,17 +76,6 @@ fun NeoDBScreen(
                         selected = uiState.selectedTab == NeoDBTab.ShelfTab(shelf),
                         onClick = { viewModel.selectTab(NeoDBTab.ShelfTab(shelf)) },
                         text = { Text(shelf.label) }
-                    )
-                }
-            }
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onNavigateToSync, enabled = uiState.isAuthenticated) {
-                    Icon(
-                        Icons.Default.Sync,
-                        contentDescription = "同步",
-                        modifier = Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }

@@ -104,8 +104,6 @@
 -keep class com.example.traktneosync.ui.** { *; }
 
 # ========== App data repositories ==========
--keep class com.example.traktneosync.data.SyncRepository { *; }
--keep class com.example.traktneosync.data.SyncRepository$* { *; }
 -keep class com.example.traktneosync.data.AuthRepository { *; }
 -keep class com.example.traktneosync.data.AuthRepository$* { *; }
 
